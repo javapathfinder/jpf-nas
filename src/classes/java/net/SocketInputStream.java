@@ -27,6 +27,11 @@ public class SocketInputStream extends InputStream {
     return buffer.read();
   }
 
+  @Override
+  public int read (byte[] b) throws IOException {
+    return buffer.read(b);
+  }
+
   Buffer getBuffer() {
     return this.buffer;
   }

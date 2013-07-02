@@ -1,5 +1,10 @@
-package gov.nasa.jpf.vm;
+package nas.java.net.choice;
 
+import gov.nasa.jpf.vm.ChoiceGenerator;
+import gov.nasa.jpf.vm.SystemState;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.ThreadList;
+import gov.nasa.jpf.vm.VM;
 import gov.nasa.jpf.vm.choice.ThreadChoiceFromSet;
 
 /**
@@ -10,7 +15,9 @@ import gov.nasa.jpf.vm.choice.ThreadChoiceFromSet;
 public class NasSchedulingChoices {
 
   public static final String ACCEPT = "ACCEPT";
+  public static final String BLOCKING_ACCEPT = "BLOCKING_ACCEPT";
   public static final String CONNECT = "CONNECT";
+  public static final String BLOCKING_CONNECT = "BLOCKING_CONNECT";
 
   protected static ThreadInfo[] getRunnables(ThreadInfo ti) {
     ThreadList tl = VM.getVM().getThreadList();
@@ -21,14 +28,14 @@ public class NasSchedulingChoices {
    * Creates a choice generator upon SocketServer.accept() which makes the server waits
    * for a connection request
    */
-  public static ChoiceGenerator<ThreadInfo> createAcceptCG (ThreadInfo tiAccept){
+  public static ChoiceGenerator<ThreadInfo> createBlockingAcceptCG (ThreadInfo tiAccept){
     SystemState ss = VM.getVM().getSystemState();
 
     if (ss.isAtomic()) {
       ss.setBlockedInAtomicSection();
     }
 
-    return new ThreadChoiceFromSet( ACCEPT, getRunnables(tiAccept), true);
+    return new ThreadChoiceFromSet( BLOCKING_ACCEPT, getRunnables(tiAccept), true);
   }
 
   /**
@@ -37,5 +44,19 @@ public class NasSchedulingChoices {
    */
   public static ChoiceGenerator<ThreadInfo> createConnectCG (ThreadInfo tiConnect){
     return new ThreadChoiceFromSet( CONNECT, getRunnables(tiConnect), true);
+  }
+
+  public static ChoiceGenerator<ThreadInfo> createBlockingConnectCG (ThreadInfo tiConnect){
+    SystemState ss = VM.getVM().getSystemState();
+
+    if (ss.isAtomic()) {
+      ss.setBlockedInAtomicSection();
+    }
+
+    return new ThreadChoiceFromSet( BLOCKING_CONNECT, getRunnables(tiConnect), true);
+  }
+
+  public static ChoiceGenerator<ThreadInfo> createAcceptCG (ThreadInfo tiConnect){
+    return new ThreadChoiceFromSet( ACCEPT, getRunnables(tiConnect), true);
   }
 }

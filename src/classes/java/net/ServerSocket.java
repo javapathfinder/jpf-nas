@@ -9,8 +9,6 @@ import java.io.IOException;
  */
 public class ServerSocket implements java.io.Closeable {
 
-  private static ServerSocket[] waitingSockets = new ServerSocket[0];
-
   /**
    * The implementation of this Socket.
    */
@@ -33,11 +31,18 @@ public class ServerSocket implements java.io.Closeable {
    *       the local port on which this socket listen for connections
    */
   public ServerSocket (int port) throws IOException {
+   // CheckForAddressAlreadyInUse(port);
     SocketImpl.checkPort(port);
     impl = new SocketImpl();
     impl.setServerSocket(this);
     impl.bind(port);
   }
+
+//  public ServerSocket (int port, int i) throws IOException {
+//    
+//  }
+
+  private native void CheckForAddressAlreadyInUse(int port);
 
   void setBound () {
     this.bound = true;
@@ -61,19 +66,24 @@ public class ServerSocket implements java.io.Closeable {
 
   private native void acceptConnectionRequest();
 
+  private native Socket getConnectedClientSocket(); 
+  
+  /**
+   * Using this server accepts the connection request and receives a new active
+   * socket which represents its end of the connection
+   */
   public Socket accept () throws IOException {
-    System.out.println("\n\n\nServer> accepting ... ");
-    waitingSockets = addToWaitingSockets(this);
+    System.out.println("Server> accepting ... ");
 
     tempSocket = null;
     
     System.out.println("Server> waiting ... ");
     acceptConnectionRequest();
+    System.out.println("Server> accepted connection!!!!" );
 
     Socket s = new Socket();
     s.shareIOBuffers(tempSocket);
-
-    System.out.println("Server> accepted connection!!!!" );
+    System.out.println("Server> done accepting request!");
     return s;
   }
 
@@ -86,11 +96,13 @@ public class ServerSocket implements java.io.Closeable {
       }
   }
 
-
+  private native void closeConnections();
+  
   @Override
   public synchronized void close() throws IOException {
     synchronized(closeLock) {
       closed = true;
+      closeConnections();
     }
   }
 }

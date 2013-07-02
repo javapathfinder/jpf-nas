@@ -27,6 +27,10 @@ public class SocketOutputStream extends OutputStream {
     buffer.write(b); 
   }
 
+  public void write(byte b[]) throws IOException {
+    buffer.write(b);
+  }
+
   Buffer getBuffer() {
     return this.buffer;
   }  

@@ -27,6 +27,13 @@ public class Socket implements java.io.Closeable {
   private boolean closed = false;
   private Object closeLock = new Object();
 
+  private Object connectLock = new Object();
+  private Thread waitingThread;
+  private Socket endpoint;
+
+  public Socket() {
+  }
+
   public Socket(String host, int port) throws UnknownHostException, IOException {
     SocketImpl.checkPort(port);
     impl = new SocketImpl();
@@ -37,7 +44,8 @@ public class Socket implements java.io.Closeable {
     connect(host, port);
   }
 
-  Socket() {
+  public Socket(InetAddress address, int port) throws UnknownHostException, IOException {
+    this(address.getHostName(), port);
   }
 
   void setBound() {
@@ -61,12 +69,12 @@ public class Socket implements java.io.Closeable {
       }
   }
 
-  private native void closeInputStreamBuffer();
+  private native void closeConnection();
 
   @Override
   public synchronized void close() throws IOException {
     synchronized(closeLock) {
-      closeInputStreamBuffer();
+      closeConnection();
       closed = true;
     }
   }
@@ -74,9 +82,13 @@ public class Socket implements java.io.Closeable {
   private native void sendConnectionRequest(String host, int port);
 
   public void connect(String host, int port) throws IOException {
-    System.out.println("\n\n\nClient> Connecting ... ");
+    System.out.println("Client> Connecting ... ");
     this.initIOStream();
-    sendConnectionRequest(host, port);
+    this.sendConnectionRequest(host, port);
+  }
+
+  public void connect(SocketAddress endpoint, int timeout) throws IOException {
+    
   }
 
   private void initIOStream() {
