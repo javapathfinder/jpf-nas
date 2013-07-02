@@ -16,6 +16,9 @@ class Buffer {
   byte[] data;
 
   private boolean closed = false;
+  
+  private Object lock = new Object();
+  private Thread waitingThread;
 
   public Buffer() {
     data = new byte[DEFAUT_SIZE];

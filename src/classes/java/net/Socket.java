@@ -88,8 +88,8 @@ public class Socket implements java.io.Closeable {
   }
 
   private void initIOStream() {
-    this.input = new SocketInputStream(this);
-    this.output = new SocketOutputStream(this);
+    this.input = new SocketInputStream();
+    this.output = new SocketOutputStream();
   }
 
   private native Thread connectSocket(String host, int port) throws IOException;

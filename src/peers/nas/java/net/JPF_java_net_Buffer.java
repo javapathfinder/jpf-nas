@@ -24,6 +24,50 @@ public class JPF_java_net_Buffer extends NativePeer {
   
   @MJI
   public int read____I (MJIEnv env, int objRef) {
+    ThreadInfo ti = env.getThreadInfo();
+    
+    if(ti.isFirstStepInsn()) { // re-execute after it got unblock, now do the read()
+      return read(env, objRef);
+    } else {
+      if(isEmpty(env, objRef)) {
+        blockRead(env, objRef);
+        env.repeatInvocation(); // re-execute needed once server gets interrupted
+        return -1;
+      } else {
+        return read(env, objRef);
+      }
+    }
+  }
+  
+  protected int read(MJIEnv env, int objRef) {
+    int arrRef = env.getElementInfo(objRef).getReferenceField("data");
+    byte[] data = env.getByteArrayObject(arrRef);
+    
+    int ret = data[0];
+    for(int i=0; i<data.length-1; i++) {
+      env.getModifiableElementInfo(arrRef).setByteElement(i, data[i+1]);
+    }
+    env.getModifiableElementInfo(arrRef).setByteElement(data.length-1, DEFAULT_VALUE);
+    
+    return ret;
+  }
+  
+  protected void blockRead(MJIEnv env, int bufferRef) {
+    ThreadInfo ti = env.getThreadInfo();
+    
+    int lock = env.getReferenceField( bufferRef, "lock");
+    ElementInfo ei = env.getModifiableElementInfo(lock);
+    env.getModifiableElementInfo(bufferRef).setReferenceField("waitingThread", ti.getThreadObjectRef());
+    
+    ei.wait(ti, 0, false);
+    
+    assert ti.isWaiting();
+    
+    ChoiceGenerator<?> cg = NasSchedulingChoices.createBlockingReadCG(ti);
+    env.setMandatoryNextChoiceGenerator(cg, "no CG on blocking InputStream.read()");
+  }
+
+  protected int read0(MJIEnv env, int objRef) {
     int arrRef = env.getElementInfo(objRef).getReferenceField("data");
     byte[] data = env.getByteArrayObject(arrRef);
     int ret = data[0];
@@ -31,7 +75,6 @@ public class JPF_java_net_Buffer extends NativePeer {
       env.getModifiableElementInfo(arrRef).setByteElement(i, data[i+1]);
     }
     env.getModifiableElementInfo(arrRef).setByteElement(data.length-1, DEFAULT_VALUE);
-
     return ret;
   }
 
@@ -63,7 +106,7 @@ public class JPF_java_net_Buffer extends NativePeer {
       }
     }
   }
-  
+
   @MJI
   public void write__I__V (MJIEnv env, int objRef, int value) {
     boolean isClosed = env.getElementInfo(objRef).getBooleanField("closed");
@@ -74,7 +117,43 @@ public class JPF_java_net_Buffer extends NativePeer {
      // env.throwException("java.io.IOException");
      // return;
     }
+    
+    // if it is empty, then there might be a read() waiting for someone to write 
+    if(isEmpty(env, objRef)) {
+      unblockRead(env, objRef);
+    }
+    
+    write(env, objRef, value);
+  }
+ 
+  protected void unblockRead(MJIEnv env, int bufferRef) {
+    ThreadInfo ti = env.getThreadInfo();
 
+    int tiRef = env.getElementInfo(bufferRef).getReferenceField("waitingThread");
+    ThreadInfo tiRead = env.getThreadInfoForObjRef(tiRef);    
+    if (tiRead == null || tiRead.isTerminated()){
+      System.out.println("returning!! " + tiRead);
+      return;
+    }
+    
+    SystemState ss = env.getSystemState();
+    int lockRef = env.getReferenceField( bufferRef, "lock");
+    ElementInfo lock = env.getModifiableElementInfo(lockRef);
+    
+    System.out.println("same lock? " + (tiRead.getLockObject() == lock));
+    if (tiRead.getLockObject() == lock){
+      lock.notifies(ss, ti, false);
+      
+      ChoiceGenerator<?> cg = NasSchedulingChoices.createWriteCG(ti);
+      if (cg != null){
+        ss.setNextChoiceGenerator(cg);
+        // env.repeatInvocation(); - no need to re-execute
+      }
+      System.out.println("Server> done unblocking the read ... read.thread.isWaiting: " + tiRead.isWaiting());
+    }
+  }
+  
+  protected void write(MJIEnv env, int objRef, int value) {
     int arrRef = env.getElementInfo(objRef).getReferenceField("data");
     byte[] data = env.getByteArrayObject(arrRef);
     int i=0;
@@ -88,7 +167,7 @@ public class JPF_java_net_Buffer extends NativePeer {
       // TODO - buffer is full!
     }
   }
-
+  
   @MJI
   public void write___3B__V (MJIEnv env, int objRef, int dataRef) {
     byte[] b = env.getByteArrayObject(dataRef);
@@ -126,9 +205,5 @@ public class JPF_java_net_Buffer extends NativePeer {
       }
     }
     return true;
-  }
-
-  protected void shareBuffers(MJIEnv env, int socket, int socketServer) {
-    
   }
 }

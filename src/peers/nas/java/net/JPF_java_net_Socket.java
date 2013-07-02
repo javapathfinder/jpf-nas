@@ -152,19 +152,15 @@ public class JPF_java_net_Socket extends NativePeer {
   protected static void shareIOStreams(MJIEnv env, int socket1, int socket2) {
     int inRef1 = env.getElementInfo(socket1).getReferenceField("input");
     int inBufferRef1 = env.getElementInfo(inRef1).getReferenceField("buffer");
-    int inDataRef1 = env.getElementInfo(inBufferRef1).getReferenceField("data");
-    
+  
     int outRef1 = env.getElementInfo(socket1).getReferenceField("output");
     int outBufferRef1 = env.getElementInfo(outRef1).getReferenceField("buffer");
-    int outDataRef1 = env.getElementInfo(outBufferRef1).getReferenceField("data");
     
     int inRef2 = env.getElementInfo(socket2).getReferenceField("input");
-    int inBufferRef2 = env.getElementInfo(inRef2).getReferenceField("buffer");
-    env.getModifiableElementInfo(inBufferRef2).setReferenceField("data", outDataRef1);
+    env.getModifiableElementInfo(inRef2).setReferenceField("buffer", outBufferRef1);
     
     int outRef2 = env.getElementInfo(socket2).getReferenceField("output");
-    int outBufferRef2 = env.getElementInfo(outRef2).getReferenceField("buffer");
-    env.getModifiableElementInfo(outBufferRef2).setReferenceField("data", inDataRef1);
+    env.getModifiableElementInfo(outRef2).setReferenceField("buffer", inBufferRef1);
   }
   
   @MJI

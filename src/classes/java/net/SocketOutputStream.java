@@ -8,18 +8,10 @@ import java.io.OutputStream;
  */
 public class SocketOutputStream extends OutputStream {
 
-  private Socket socket = null;
-
   private Buffer buffer;
   
-  public SocketOutputStream(Socket socket) {
-    this.socket = socket;
+  public SocketOutputStream() {
     buffer = new Buffer();
-  }
-
-  SocketOutputStream(Socket socket, Buffer buffer) {
-    this.socket = socket;
-    this.buffer = buffer;
   }
 
   @Override
