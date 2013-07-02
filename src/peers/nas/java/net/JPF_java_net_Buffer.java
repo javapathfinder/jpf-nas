@@ -1,8 +1,16 @@
 package nas.java.net;
 
+import nas.java.net.choice.NasSchedulingChoices;
+import nas.java.net.connection.Connections;
+import nas.java.net.connection.Connections.Connection;
 import gov.nasa.jpf.annotation.MJI;
+import gov.nasa.jpf.vm.ChoiceGenerator;
+import gov.nasa.jpf.vm.ElementInfo;
 import gov.nasa.jpf.vm.MJIEnv;
 import gov.nasa.jpf.vm.NativePeer;
+import gov.nasa.jpf.vm.SystemState;
+import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.VM;
 
 /**
  * The native peer class for our java.net.Buffer which encapsulates the communication
@@ -96,5 +104,31 @@ public class JPF_java_net_Buffer extends NativePeer {
     for(int j=i; j<minLen; j++) {
       env.getModifiableElementInfo(arrRef).setByteElement(j, b[j-i]);
     }
+  }
+
+  protected boolean isEmpty(MJIEnv env, int objRef) {
+    int arrRef = env.getElementInfo(objRef).getReferenceField("data");
+    byte[] data = env.getByteArrayObject(arrRef);
+    for(int i=0; i<data.length; i++) {
+      if(data[i]!=DEFAULT_VALUE) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  protected boolean isFull(MJIEnv env, int objRef) {
+    int arrRef = env.getElementInfo(objRef).getReferenceField("data");
+    byte[] data = env.getByteArrayObject(arrRef);
+    for(int i=0; i<data.length; i++) {
+      if(data[i]==DEFAULT_VALUE) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  protected void shareBuffers(MJIEnv env, int socket, int socketServer) {
+    
   }
 }

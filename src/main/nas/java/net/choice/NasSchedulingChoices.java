@@ -18,6 +18,8 @@ public class NasSchedulingChoices {
   public static final String BLOCKING_ACCEPT = "BLOCKING_ACCEPT";
   public static final String CONNECT = "CONNECT";
   public static final String BLOCKING_CONNECT = "BLOCKING_CONNECT";
+  public static final String WRITE = "WRITE";
+  public static final String BLOCKING_READ = "BLOCKING_READ";
 
   protected static ThreadInfo[] getRunnables(ThreadInfo ti) {
     ThreadList tl = VM.getVM().getThreadList();
@@ -25,7 +27,7 @@ public class NasSchedulingChoices {
   }
 
   /**
-   * Creates a choice generator upon SocketServer.accept() which makes the server waits
+   * Creates a choice generator upon SocketServer.accept() which makes the server wait
    * for a connection request
    */
   public static ChoiceGenerator<ThreadInfo> createBlockingAcceptCG (ThreadInfo tiAccept){
@@ -58,5 +60,23 @@ public class NasSchedulingChoices {
 
   public static ChoiceGenerator<ThreadInfo> createAcceptCG (ThreadInfo tiConnect){
     return new ThreadChoiceFromSet( ACCEPT, getRunnables(tiConnect), true);
+  }
+
+  /**
+   * Creates a choice generator upon Socket.read() which makes the client/server wait
+   * on an empty buffer, until the other end-point writes something
+   */
+  public static ChoiceGenerator<ThreadInfo> createBlockingReadCG (ThreadInfo tiRead){
+    SystemState ss = VM.getVM().getSystemState();
+
+    if (ss.isAtomic()) {
+      ss.setBlockedInAtomicSection();
+    }
+
+    return new ThreadChoiceFromSet( BLOCKING_READ, getRunnables(tiRead), true);
+  }
+
+  public static ChoiceGenerator<ThreadInfo> createWriteCG (ThreadInfo tiConnect){
+    return new ThreadChoiceFromSet( WRITE, getRunnables(tiConnect), true);
   }
 }

@@ -81,11 +81,13 @@ public class JPF_java_net_ServerSocket extends NativePeer {
     if (ti.isFirstStepInsn()){ // re-executed
       // notified | timedout | interrupted -> running
       switch (ti.getState()) {
-        case NOTIFIED:
+        case NOTIFIED: // should I exclude this??
         case TIMEDOUT:
         case INTERRUPTED:
           ti.resetLockRef();
           ti.setRunning();
+          // is that right?!
+          env.getModifiableElementInfo(serverSocketRef).setReferenceField("acceptedSocket", MJIEnv.NULL);
           break;
         default:
           // nothing
@@ -99,57 +101,77 @@ public class JPF_java_net_ServerSocket extends NativePeer {
       // then let's establish the connection and unblock the waiting client thread
       if(conn!=null && conn.isPending()) {
         System.out.println("Server> connecting to the pending client: " + conn.getClient());
-        int clientRef = conn.getClient();
-        
-        int tiRef = env.getElementInfo(clientRef).getReferenceField("waitingThread");
-        ThreadInfo tiConnect = env.getThreadInfoForObjRef(tiRef);    
-        if (tiConnect == null || tiConnect.isTerminated()){
-          return;
-        }
-        
-        SystemState ss = env.getSystemState();
-        int lockRef = env.getReferenceField( clientRef, "connectLock");
-        ElementInfo lock = env.getModifiableElementInfo(lockRef);
-
-        if (tiConnect.getLockObject() == lock){
-          VM vm = VM.getVM();
-          env.getModifiableElementInfo(serverSocketRef).setReferenceField("tempSocket",clientRef);
-          lock.notifies(ss, ti, false);
-          // connection is established with a client, then just set the server info
-          //conn.setServerInfo(serverSocketRef, connections.getApplicationContext(serverSocketRef));
-          connections.setServerInfoFor(conn, serverSocketRef, vm.getApplicationContext(serverSocketRef));
-
-          ChoiceGenerator<?> cg = NasSchedulingChoices.createAcceptCG(ti);
-          if (cg != null){
-            ss.setNextChoiceGenerator(cg);
-            env.repeatInvocation();
-          }
-          System.out.println("Server> done accepting and unblocking the client ...");
-        }
+        unblockClientConnect(env, serverSocketRef, conn);
       } 
       // there is no client waiting to connect to this server, therefore let's create
-      // a new server and blocks it until it receives a connection request from a client
+      // a new server connection and blocks it until it receives a connection request 
+      // from a client
       else {
         System.out.println("Server> no client is waiting - creating new connection");
-        connections = Connections.getConnections();
-        connections.addNewPendingServerConn(serverSocketRef, port, serverHost);
-        
-        int lock = env.getReferenceField( serverSocketRef, "acceptLock");
-        ElementInfo ei = env.getModifiableElementInfo(lock);
-        env.getElementInfo(serverSocketRef).setReferenceField("waitingThread", ti.getThreadObjectRef());
-        
-        ei.wait(ti, 0, false);
-
-        assert ti.isWaiting();
-
-        // note we pass in the timeout value, since this might determine the type of CG that is created
-        ChoiceGenerator<?> cg = NasSchedulingChoices.createBlockingAcceptCG(ti);
-        env.setMandatoryNextChoiceGenerator(cg, "no CG on blocking ServerSocket.accept()");
-        env.repeatInvocation();
+        blockServerAccept(env, serverSocketRef);
       }
     }
   }
 
+  protected void unblockClientConnect(MJIEnv env, int serverSocketRef, Connection conn) {
+    ThreadInfo ti = env.getThreadInfo();
+
+    int clientRef = conn.getClient();
+    
+    int tiRef = env.getElementInfo(clientRef).getReferenceField("waitingThread");
+    ThreadInfo tiConnect = env.getThreadInfoForObjRef(tiRef);    
+    if (tiConnect == null || tiConnect.isTerminated()){
+      return;
+    }
+    
+    SystemState ss = env.getSystemState();
+    int lockRef = env.getReferenceField( clientRef, "clientLock");
+    ElementInfo lock = env.getModifiableElementInfo(lockRef);
+
+    if (tiConnect.getLockObject() == lock){
+      VM vm = VM.getVM();
+      
+      // makes the client socket to share its buffers with acceptedSocket which is the 
+      // return value of ServerSocket.accept()
+      int acceptedSocket = env.getElementInfo(serverSocketRef).getReferenceField("acceptedSocket");
+      JPF_java_net_Socket.shareIOStreams(env, clientRef, acceptedSocket);
+       
+      lock.notifies(ss, ti, false);
+      
+      // connection is established with a client, then just set the server info
+      connections.setServerInfoFor(conn, serverSocketRef, vm.getApplicationContext(serverSocketRef));
+
+      ChoiceGenerator<?> cg = NasSchedulingChoices.createAcceptCG(ti);
+      if (cg != null){
+        ss.setNextChoiceGenerator(cg);
+        // env.repeatInvocation(); - no need to re-execute
+      }
+      System.out.println("Server> done accepting and unblocking the client ...");
+    }
+  }
+  
+  protected void blockServerAccept(MJIEnv env, int serverSocketRef) {
+    ThreadInfo ti = env.getThreadInfo();
+    
+    String serverHost = getServerHost(env, serverSocketRef); 
+    int port = getServerPort(env, serverSocketRef);
+    
+    connections = Connections.getConnections();
+    connections.addNewPendingServerConn(serverSocketRef, port, serverHost);
+    
+    int lock = env.getReferenceField( serverSocketRef, "serverLock");
+    ElementInfo ei = env.getModifiableElementInfo(lock);
+    env.getElementInfo(serverSocketRef).setReferenceField("waitingThread", ti.getThreadObjectRef());
+    
+    ei.wait(ti, 0, false);
+    
+    assert ti.isWaiting();
+    
+    ChoiceGenerator<?> cg = NasSchedulingChoices.createBlockingAcceptCG(ti);
+    env.setMandatoryNextChoiceGenerator(cg, "no CG on blocking ServerSocket.accept()");
+    env.repeatInvocation(); // re-execute needed in case blocking server some how get interrupted
+  }
+  
   @MJI
   public int getConnectedClientSocket____Ljava_net_Socket_2 (MJIEnv env, int objRef) {
     int rSocket = MJIEnv.NULL;

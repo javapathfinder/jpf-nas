@@ -59,9 +59,9 @@ public class ServerSocket implements java.io.Closeable {
   private native ServerSocket[] addToWaitingSockets (ServerSocket socket);
 
 
-  private Object acceptLock = new Object();
+  private Object serverLock = new Object();
 
-  private Socket tempSocket;
+  private Socket acceptedSocket;
   private Thread waitingThread;
 
   private native void acceptConnectionRequest();
@@ -75,16 +75,14 @@ public class ServerSocket implements java.io.Closeable {
   public Socket accept () throws IOException {
     System.out.println("Server> accepting ... ");
 
-    tempSocket = null;
+    // The IO buffers of this socket are shared natively with the client socket at 
+    // the other end
+    acceptedSocket = new Socket();
     
     System.out.println("Server> waiting ... ");
     acceptConnectionRequest();
     System.out.println("Server> accepted connection!!!!" );
-
-    Socket s = new Socket();
-    s.shareIOBuffers(tempSocket);
-    System.out.println("Server> done accepting request!");
-    return s;
+    return acceptedSocket;
   }
 
   /**

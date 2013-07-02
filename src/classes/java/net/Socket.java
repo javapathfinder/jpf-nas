@@ -27,11 +27,12 @@ public class Socket implements java.io.Closeable {
   private boolean closed = false;
   private Object closeLock = new Object();
 
-  private Object connectLock = new Object();
+  private Object clientLock = new Object();
   private Thread waitingThread;
   private Socket endpoint;
 
   public Socket() {
+    initIOStream();
   }
 
   public Socket(String host, int port) throws UnknownHostException, IOException {
@@ -41,6 +42,7 @@ public class Socket implements java.io.Closeable {
     impl.bind(-1);
     impl.remoteHost = host;
     impl.port = port;
+    this.initIOStream();
     connect(host, port);
   }
 
@@ -79,13 +81,7 @@ public class Socket implements java.io.Closeable {
     }
   }
 
-  private native void sendConnectionRequest(String host, int port);
-
-  public void connect(String host, int port) throws IOException {
-    System.out.println("Client> Connecting ... ");
-    this.initIOStream();
-    this.sendConnectionRequest(host, port);
-  }
+  public native void connect(String host, int port);
 
   public void connect(SocketAddress endpoint, int timeout) throws IOException {
     
@@ -94,11 +90,6 @@ public class Socket implements java.io.Closeable {
   private void initIOStream() {
     this.input = new SocketInputStream(this);
     this.output = new SocketOutputStream(this);
-  }
-
-  void shareIOBuffers(Socket s) {
-    this.input = new SocketInputStream(this, s.output.getBuffer());
-    this.output = new SocketOutputStream(this, s.input.getBuffer());
   }
 
   private native Thread connectSocket(String host, int port) throws IOException;
