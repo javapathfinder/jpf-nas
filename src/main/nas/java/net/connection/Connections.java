@@ -26,7 +26,7 @@ public class Connections implements StateExtensionClient<List<Connection>>{
     this.curr = new ArrayList<Connection>();
   }
 
-  static class Connection implements Cloneable {
+  public static class Connection implements Cloneable {
     
     public enum State {
       PENDING,
@@ -153,7 +153,7 @@ public class Connections implements StateExtensionClient<List<Connection>>{
     connections.registerListener(VM.getVM().getJPF());
   }
 
-  static Connections getConnections() {
+  public static Connections getConnections() {
     return connections;
   }
 
