@@ -84,7 +84,7 @@ public class Socket implements java.io.Closeable {
   public native void connect(String host, int port);
 
   public void connect(SocketAddress endpoint, int timeout) throws IOException {
-    
+    //?
   }
 
   private void initIOStream() {
