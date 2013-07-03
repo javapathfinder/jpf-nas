@@ -27,19 +27,19 @@ public class JPF_java_net_Buffer extends NativePeer {
     ThreadInfo ti = env.getThreadInfo();
     
     if(ti.isFirstStepInsn()) { // re-execute after it got unblock, now do the read()
-      return read(env, objRef);
+      return readByte(env, objRef);
     } else {
       if(isEmpty(env, objRef)) {
         blockRead(env, objRef);
         env.repeatInvocation(); // re-execute needed once server gets interrupted
         return -1;
       } else {
-        return read(env, objRef);
+        return readByte(env, objRef);
       }
     }
   }
   
-  protected int read(MJIEnv env, int objRef) {
+  protected int readByte(MJIEnv env, int objRef) {
     int arrRef = env.getElementInfo(objRef).getReferenceField("data");
     byte[] data = env.getByteArrayObject(arrRef);
     
@@ -66,20 +66,9 @@ public class JPF_java_net_Buffer extends NativePeer {
     ChoiceGenerator<?> cg = NasSchedulingChoices.createBlockingReadCG(ti);
     env.setMandatoryNextChoiceGenerator(cg, "no CG on blocking InputStream.read()");
   }
-
-  protected int read0(MJIEnv env, int objRef) {
-    int arrRef = env.getElementInfo(objRef).getReferenceField("data");
-    byte[] data = env.getByteArrayObject(arrRef);
-    int ret = data[0];
-    for(int i=0; i<data.length-1; i++) {
-      env.getModifiableElementInfo(arrRef).setByteElement(i, data[i+1]);
-    }
-    env.getModifiableElementInfo(arrRef).setByteElement(data.length-1, DEFAULT_VALUE);
-    return ret;
-  }
-
+  
   @MJI
-  public int read___3B__I (MJIEnv env, int objRef, int desArrRef) {
+  public int read___3B__Ix (MJIEnv env, int objRef, int desArrRef) {
     int arrRef = env.getElementInfo(objRef).getReferenceField("data");
     byte[] data = env.getByteArrayObject(arrRef);
     int len = env.getByteArrayObject(desArrRef).length;
@@ -93,6 +82,38 @@ public class JPF_java_net_Buffer extends NativePeer {
     return minLen;
   }
 
+  @MJI
+  public int read___3B__I (MJIEnv env, int objRef, int desArrRef) {
+    ThreadInfo ti = env.getThreadInfo();
+    
+    if(ti.isFirstStepInsn()) { // re-execute after it got unblock, now do the read()
+      // TODO - explore other cases! maybe it has got interrupted
+      return readByteArray(env, objRef, desArrRef);
+    } else {
+      if(isEmpty(env, objRef)) {
+        blockRead(env, objRef);
+        env.repeatInvocation(); // re-execute needed once server gets interrupted
+        return -1;
+      } else {
+        return readByteArray(env, objRef, desArrRef);
+      }
+    }
+  }
+  
+  protected int readByteArray(MJIEnv env, int objRef, int desArrRef) {
+    int arrRef = env.getElementInfo(objRef).getReferenceField("data");
+    byte[] data = env.getByteArrayObject(arrRef);
+    int len = env.getByteArrayObject(desArrRef).length;
+
+    int minLen = Math.min(len, data.length);
+    for(int i=0; i<minLen; i++) {
+      env.getModifiableElementInfo(desArrRef).setByteElement(i, data[i]);
+    }
+
+    shiftElements(env, arrRef, minLen);
+    return minLen;
+  }
+  
   // shifts array elements by n to the left
   private void shiftElements(MJIEnv env, int arrRef, int n) {
     byte[] data = env.getByteArrayObject(arrRef);
@@ -123,7 +144,7 @@ public class JPF_java_net_Buffer extends NativePeer {
       unblockRead(env, objRef);
     }
     
-    write(env, objRef, value);
+    writeByte(env, objRef, value);
   }
  
   protected void unblockRead(MJIEnv env, int bufferRef) {
@@ -153,7 +174,7 @@ public class JPF_java_net_Buffer extends NativePeer {
     }
   }
   
-  protected void write(MJIEnv env, int objRef, int value) {
+  protected void writeByte(MJIEnv env, int objRef, int value) {
     int arrRef = env.getElementInfo(objRef).getReferenceField("data");
     byte[] data = env.getByteArrayObject(arrRef);
     int i=0;
@@ -170,6 +191,24 @@ public class JPF_java_net_Buffer extends NativePeer {
   
   @MJI
   public void write___3B__V (MJIEnv env, int objRef, int dataRef) {
+    boolean isClosed = env.getElementInfo(objRef).getBooleanField("closed");
+
+    // the socket at the other end has been close, so throw IOException
+    // TODO - I think we need transition break upon closing
+    if(isClosed) {
+     // env.throwException("java.io.IOException");
+     // return;
+    }
+    
+    // if it is empty, then there might be a read() waiting for someone to write 
+    if(isEmpty(env, objRef)) {
+      unblockRead(env, objRef);
+    }
+    
+    writeByteArray(env, objRef, dataRef);
+  }
+  
+  protected void writeByteArray(MJIEnv env, int objRef, int dataRef) {
     byte[] b = env.getByteArrayObject(dataRef);
     int arrRef = env.getElementInfo(objRef).getReferenceField("data");
     byte[] data = env.getByteArrayObject(arrRef);
@@ -184,7 +223,7 @@ public class JPF_java_net_Buffer extends NativePeer {
       env.getModifiableElementInfo(arrRef).setByteElement(j, b[j-i]);
     }
   }
-
+  
   protected boolean isEmpty(MJIEnv env, int objRef) {
     int arrRef = env.getElementInfo(objRef).getReferenceField("data");
     byte[] data = env.getByteArrayObject(arrRef);

@@ -81,8 +81,8 @@ public class JPF_java_net_ServerSocket extends NativePeer {
     if (ti.isFirstStepInsn()){ // re-executed
       // notified | timedout | interrupted -> running
       switch (ti.getState()) {
-        case NOTIFIED: // should I exclude this??
-        case TIMEDOUT:
+        // Note - excluded the case for the NOTIFIED state, why?
+        case TIMEDOUT: // TODO - how to deal with timeout? Look into "object.wait()" 
         case INTERRUPTED:
           ti.resetLockRef();
           ti.setRunning();
