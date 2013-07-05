@@ -307,15 +307,18 @@ public class Connections implements StateExtensionClient<List<Connection>> {
     this.curr.add(conn);
   }
 
-  public void closeConnections(int endpoint) {
+  public void closeConnection(int endpoint) {
     Iterator<Connection> itr = curr.iterator();
     while(itr.hasNext()) {
       Connection conn = itr.next();
 
       if(conn.isConnectionEndpoint(endpoint)) {
         conn.close();
+        return;
       }
     }
+    // there was not connection with the given endpoint
+    throw new ConnectionException("Could not find the connection to close");
   }
   
   // check if there exists a server with the given host and port 

@@ -20,6 +20,7 @@ public class NasSchedulingChoices {
   public static final String BLOCKING_CONNECT = "BLOCKING_CONNECT";
   public static final String WRITE = "WRITE";
   public static final String BLOCKING_READ = "BLOCKING_READ";
+  public static final String SOCKET_CLOSE = "SOCKET_CLOSE";
 
   protected static ThreadInfo[] getRunnables(ThreadInfo ti) {
     ThreadList tl = VM.getVM().getThreadList();
@@ -78,5 +79,12 @@ public class NasSchedulingChoices {
 
   public static ChoiceGenerator<ThreadInfo> createWriteCG (ThreadInfo tiConnect){
     return new ThreadChoiceFromSet( WRITE, getRunnables(tiConnect), true);
+  }
+  
+  /**
+   * Creates a choice generator right before closing a socket
+   */
+  public static ChoiceGenerator<ThreadInfo> createSocketCloseCG (ThreadInfo tiClose){
+    return new ThreadChoiceFromSet( SOCKET_CLOSE, getRunnables(tiClose), true);
   }
 }

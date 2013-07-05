@@ -2,7 +2,7 @@ package java.net;
 
 import java.io.IOException;
 
-/** 
+/**
  * Model class for java.net.ServerSocket
  * 
  * @author Nastaran Shafiei
@@ -28,21 +28,17 @@ public class ServerSocket implements java.io.Closeable {
    * be called.
    * 
    * @param port
-   *       the local port on which this socket listen for connections
+   *          the local port on which this socket listen for connections
    */
   public ServerSocket (int port) throws IOException {
-   // CheckForAddressAlreadyInUse(port);
+    CheckForAddressAlreadyInUse(port);
     SocketImpl.checkPort(port);
     impl = new SocketImpl();
     impl.setServerSocket(this);
     impl.bind(port);
   }
 
-//  public ServerSocket (int port, int i) throws IOException {
-//    
-//  }
-
-  private native void CheckForAddressAlreadyInUse(int port);
+  private native void CheckForAddressAlreadyInUse (int port);
 
   void setBound () {
     this.bound = true;
@@ -58,43 +54,41 @@ public class ServerSocket implements java.io.Closeable {
 
   private native ServerSocket[] addToWaitingSockets (ServerSocket socket);
 
-
   private Object lock = new Object();
 
   private Socket acceptedSocket;
+
   private Thread waitingThread;
 
-  private native void acceptConnectionRequest();
-  
+  private native void acceptConnectionRequest ();
+
   /**
    * Using this server accepts the connection request and receives a new active
    * socket which represents its end of the connection
    */
   public Socket accept () throws IOException {
-    // The IO buffers of this socket are shared natively with the client socket at 
-    // the other end
+    if (isClosed()) {
+      throw new SocketException("Socket is closed");
+    } 
+    // TODO: check for the "unbound" state
+    
+    // The IO buffers of this socket are shared natively with the client socket
+    // at the other end
     acceptedSocket = new Socket();
     acceptConnectionRequest();
-    
+
     return acceptedSocket;
   }
 
   /**
    * Returns the closed state of the socket.
    */
-  public boolean isClosed() {
-      synchronized(closeLock) {
-        return closed;
-      }
+  public boolean isClosed () {
+    return this.closed;
   }
 
-  private native void closeConnections();
-  
+  // TODO: Any thread currently blocked in accept() will throw a SocketException
+  // TODO: Throws IOException, if an I/O error occurs when closing the socket
   @Override
-  public synchronized void close() throws IOException {
-    synchronized(closeLock) {
-      closed = true;
-      closeConnections();
-    }
-  }
+  public native synchronized void close ();
 }

@@ -11,6 +11,8 @@ import nas.java.net.connection.Connections;
 import nas.java.net.connection.Connections.Connection;
 
 public class JPF_java_net_SocketInputStream extends NativePeer {
+  static int EOF = -1;
+  
   Connections connections = Connections.getConnections();
   
   @MJI
@@ -19,8 +21,18 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
     
     // Note that we can only retrieve the connection using the client end cause
     // serverSocket can be connected to multiple clients at the time
-    int clientEnd = getClientEnd(env, objRef);
+    int socketRef = env.getElementInfo(objRef).getReferenceField("socket");
+    int clientEnd = getClientEnd(env, socketRef);
     Connection conn = connections.getConnection(clientEnd);
+    
+    // if this end is closed, an exception should be thrown. If the socket at the 
+    // other end is closed just return EOF
+    if(conn.isClosed()) {
+      if(isThisEndClosed(env, objRef)) {
+        env.throwException("java.net.SocketException", "Socket closed");
+      }
+      return EOF;
+    }
     
     if(ti.isFirstStepInsn()) { // re-execute after it got unblock, now do the read()
       return readByte(env, objRef, conn);
@@ -35,13 +47,20 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
     }
   }
   
+  public static boolean isThisEndClosed(MJIEnv env, int streamRef) {
+    int socket = env.getElementInfo(streamRef).getReferenceField("socket");
+    boolean closed =env.getElementInfo(socket).getBooleanField("closed");
+    return closed;
+  }
+  
   @MJI
   public int read___3B__I (MJIEnv env, int objRef, int desArrRef) {
     ThreadInfo ti = env.getThreadInfo();
     
     // Note that we can only retrieve the connection using the client end cause
     // serverSocket can be connected to multiple clients at the time
-    int clientEnd = getClientEnd(env, objRef);
+    int socketRef = env.getElementInfo(objRef).getReferenceField("socket");
+    int clientEnd = getClientEnd(env, socketRef);
     Connection conn = connections.getConnection(clientEnd);
     
     if(ti.isFirstStepInsn()) { // re-execute after it got unblock, now do the read()
@@ -108,9 +127,8 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
     }
   }
   
-  protected static int getClientEnd(MJIEnv env, int streamRef) {
+  protected static int getClientEnd(MJIEnv env, int socketRef) {
     // first check if this inputStream is for a client or a server
-    int socketRef = env.getElementInfo(streamRef).getReferenceField("socket");
     int clientEndRef = env.getElementInfo(socketRef).getReferenceField("clientEnd");
     int clientRef;
     

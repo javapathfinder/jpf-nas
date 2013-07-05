@@ -1,5 +1,7 @@
 package nas.java.net;
 
+import java.net.SocketException;
+
 import nas.java.net.choice.NasSchedulingChoices;
 import nas.java.net.connection.Connections;
 import nas.java.net.connection.Connections.Connection;
@@ -56,6 +58,12 @@ public class JPF_java_net_Socket extends NativePeer {
           // nothing
       }
     } else { // first time
+      boolean closed = env.getElementInfo(socketRef).getBooleanField("closed");
+      if (closed) {
+        env.throwException("java.net.SocketException", "Socket is closed");
+        return;
+      }
+      
       String host = env.getStringObject(hostRef);
       if(!hostExists(env, host)) {
         return;
@@ -141,6 +149,31 @@ public class JPF_java_net_Socket extends NativePeer {
   
   @MJI
   public void close____V (MJIEnv env, int socketRef) {
-    connections.closeConnections(socketRef);
+    ThreadInfo ti = env.getThreadInfo();
+    
+    boolean closed = env.getElementInfo(socketRef).getBooleanField("closed");
+    
+    if(ti.isFirstStepInsn()) { // re-execute
+      assert !closed;
+      
+      // changes the close status of the socket
+      env.getModifiableElementInfo(socketRef).setBooleanField("closed", true);
+      
+      // closes the socket connection - Note: closing this socket will also 
+      // close its InputStream and OutputStream
+      
+      int clientEnd = JPF_java_net_SocketInputStream.getClientEnd(env, socketRef);
+      connections.closeConnection(clientEnd);
+      return;
+    } else { // first time
+      // before closing the socket, creates a choice generator and re-execute the
+      // invocation of close()
+      if(!closed) {
+        ChoiceGenerator<?> cg = NasSchedulingChoices.createSocketCloseCG(ti);
+        env.setMandatoryNextChoiceGenerator(cg, "no CG on Socket.close()");
+        env.repeatInvocation();
+        return;
+      }
+    }
   }
 }

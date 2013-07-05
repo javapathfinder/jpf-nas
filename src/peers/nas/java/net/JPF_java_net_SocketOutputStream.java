@@ -16,8 +16,20 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
   
   @MJI
   public void write__I__V (MJIEnv env, int objRef, int value) {
-    int clientEnd = JPF_java_net_SocketInputStream.getClientEnd(env, objRef);
+    int socketRef = env.getElementInfo(objRef).getReferenceField("socket");
+    int clientEnd = JPF_java_net_SocketInputStream.getClientEnd(env, socketRef);
     Connection conn = connections.getConnection(clientEnd);
+    
+    if(conn.isClosed()) {
+      String msg;
+      if(JPF_java_net_SocketInputStream.isThisEndClosed(env, objRef)) {
+        msg = "Socket closed";
+      } else {
+        msg = "Broken pipe";
+      }
+      env.throwException("java.net.SocketException", msg);
+      return;
+    }
     
     // if it is empty, then there might be a read() waiting for someone to write 
     if(JPF_java_net_SocketInputStream.isBufferEmpty(env, objRef, conn)) {
@@ -29,7 +41,8 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
   
   @MJI
   public void write___3B__V (MJIEnv env, int objRef, int dataRef) {
-    int clientEnd = JPF_java_net_SocketInputStream.getClientEnd(env, objRef);
+    int socketRef = env.getElementInfo(objRef).getReferenceField("socket");
+    int clientEnd = JPF_java_net_SocketInputStream.getClientEnd(env, socketRef);
     Connection conn = connections.getConnection(clientEnd);
     
     // if it is empty, then there might be a read() waiting for someone to write 
