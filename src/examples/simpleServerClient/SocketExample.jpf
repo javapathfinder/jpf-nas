@@ -1,0 +1,13 @@
+@using=jpf-nas
+
+target.0 = simpleServerClient.Server
+target.1 = simpleServerClient.Client
+
+#target.host.0 = ServerHost
+#target.host.1 = ClientHost
+
+search.multiple_errors = true
+
+listener+=,gov.nasa.jpf.listener.SimpleDot
+#,gov.nasa.jpf.listener.ExecTracker
+#gov.nasa.jpf.listener.SimpleDot 
