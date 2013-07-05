@@ -8,22 +8,17 @@ import java.io.OutputStream;
  */
 public class SocketOutputStream extends OutputStream {
 
-  private Buffer buffer;
+  //private Buffer buffer;
+  private Socket socket;
   
-  public SocketOutputStream() {
-    buffer = new Buffer();
+  public SocketOutputStream(Socket socket) {
+    this.socket = socket;
+  //  this.buffer = new Buffer();
   }
 
   @Override
-  public void write (int b) throws IOException {
-    buffer.write(b); 
-  }
+  public native void write (int b) throws IOException;
 
-  public void write(byte b[]) throws IOException {
-    buffer.write(b);
-  }
-
-  Buffer getBuffer() {
-    return this.buffer;
-  }  
+  @Override
+  public native void write(byte b[]) throws IOException;
 }

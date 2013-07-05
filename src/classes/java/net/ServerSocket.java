@@ -59,29 +59,23 @@ public class ServerSocket implements java.io.Closeable {
   private native ServerSocket[] addToWaitingSockets (ServerSocket socket);
 
 
-  private Object serverLock = new Object();
+  private Object lock = new Object();
 
   private Socket acceptedSocket;
   private Thread waitingThread;
 
   private native void acceptConnectionRequest();
-
-  private native Socket getConnectedClientSocket(); 
   
   /**
    * Using this server accepts the connection request and receives a new active
    * socket which represents its end of the connection
    */
   public Socket accept () throws IOException {
-    System.out.println("Server> accepting ... ");
-
     // The IO buffers of this socket are shared natively with the client socket at 
     // the other end
     acceptedSocket = new Socket();
-    
-    System.out.println("Server> waiting ... ");
     acceptConnectionRequest();
-    System.out.println("Server> accepted connection!!!!" );
+    
     return acceptedSocket;
   }
 

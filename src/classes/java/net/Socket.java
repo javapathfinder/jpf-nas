@@ -14,6 +14,10 @@ public class Socket implements java.io.Closeable {
   private SocketInputStream input = null;
   private SocketOutputStream output = null;
   
+  // only for socket objects returned by ServerSocket.accept() is natively set to
+  // non-null value which the client
+  final private Socket clientEnd = null;
+  
   /**
    * The implementation of this Socket.
    */
@@ -24,15 +28,13 @@ public class Socket implements java.io.Closeable {
    */
   private boolean bound = false;
   private boolean connected = false;
-  private boolean closed = false;
   private Object closeLock = new Object();
 
-  private Object clientLock = new Object();
+  private Object lock = new Object();
   private Thread waitingThread;
-  private Socket endpoint;
 
   public Socket() {
-    initIOStream();
+    this.setIOStream();
   }
 
   public Socket(String host, int port) throws UnknownHostException, IOException {
@@ -42,7 +44,7 @@ public class Socket implements java.io.Closeable {
     impl.bind(-1);
     impl.remoteHost = host;
     impl.port = port;
-    this.initIOStream();
+    this.setIOStream();
     connect(host, port);
   }
 
@@ -65,21 +67,12 @@ public class Socket implements java.io.Closeable {
   /**
    * Returns the closed state of the socket.
    */
-  public boolean isClosed() {
-      synchronized(closeLock) {
-        return closed;
-      }
-  }
+  public native boolean isClosed();
 
   private native void closeConnection();
 
   @Override
-  public synchronized void close() throws IOException {
-    synchronized(closeLock) {
-      closeConnection();
-      closed = true;
-    }
-  }
+  public native void close() throws IOException;
 
   public native void connect(String host, int port);
 
@@ -87,9 +80,9 @@ public class Socket implements java.io.Closeable {
     //?
   }
 
-  private void initIOStream() {
-    this.input = new SocketInputStream();
-    this.output = new SocketOutputStream();
+  private void setIOStream() {
+    this.input = new SocketInputStream(this);
+    this.output = new SocketOutputStream(this);
   }
 
   private native Thread connectSocket(String host, int port) throws IOException;

@@ -8,23 +8,17 @@ import java.io.InputStream;
  */
 public class SocketInputStream extends InputStream {
   
-  private Buffer buffer;
+ // private Buffer buffer;
+  private Socket socket;
 
-  public SocketInputStream() {
-    this.buffer = new Buffer();
+  public SocketInputStream(Socket socket) {
+    this.socket = socket;
+   // this.buffer = new Buffer();
   }
 
   @Override
-  public int read () throws IOException {
-    return buffer.read();
-  }
+  public native int read () throws IOException;
 
   @Override
-  public int read (byte[] b) throws IOException {
-    return buffer.read(b);
-  }
-
-  Buffer getBuffer() {
-    return this.buffer;
-  }
+  public native int read (byte[] b) throws IOException;
 }

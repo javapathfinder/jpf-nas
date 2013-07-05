@@ -6,8 +6,6 @@ import nas.java.net.connection.Connections.Connection;
 import gov.nasa.jpf.annotation.MJI;
 import gov.nasa.jpf.vm.ApplicationContext;
 import gov.nasa.jpf.vm.ChoiceGenerator;
-import gov.nasa.jpf.vm.ClassInfo;
-import gov.nasa.jpf.vm.ClassLoaderInfo;
 import gov.nasa.jpf.vm.ElementInfo;
 import gov.nasa.jpf.vm.MJIEnv;
 import gov.nasa.jpf.vm.MultiProcessVM;
@@ -57,35 +55,29 @@ public class JPF_java_net_Socket extends NativePeer {
         default:
           // nothing
       }
-    } else if (!ti.isFirstStepInsn()){ // first time
-      
+    } else { // first time
       String host = env.getStringObject(hostRef);
       if(!hostExists(env, host)) {
         return;
       }
 
-      Connection conn = connections.getServerConn(port, host);
+      Connection conn = connections.getServerPendingConn(port, host);
 
-      System.out.println("Client> sending request ...");
-      // there was no server accept associated with this address
-      if(conn==null) {
-        System.out.println("Client> no server is found - throw IOException - clinet: " + socketRef);
+      // there is no server accept associated with this address
+      if(conn==null && !connections.hasServerConn(port, host)) {
         env.throwException("java.io.IOException");
         return;
       }       
       // there is a server accept which is pending (i.e., waiting for the client request).
       // In this case, we connect this client to the pending server and unblock the server
-      else if(conn.isPending()){
-        System.out.println("Client> A server is waiting - server: " + conn.getServer() + " - client: " + socketRef);
+      else if(conn!=null && conn.isPending()){
         unblockServerAccept(env, socketRef, conn);
       }
       // there is a server accept but it is connected to some other client. In this case
       // the client blocks until it gets picked up by another server accept.
       else {
-        System.out.println("Client> A server is there but not waiting - server: " + conn.getServer() + " - client: " + socketRef);
         blockClientConnect(env, socketRef, port, host);
       }
-      System.out.println("Client> done sending request!");
     }
   }
   
@@ -101,7 +93,7 @@ public class JPF_java_net_Socket extends NativePeer {
     }
     
     SystemState ss = env.getSystemState();
-    int lockRef = env.getReferenceField( serverRef, "serverLock");
+    int lockRef = env.getReferenceField( serverRef, "lock");
     ElementInfo lock = env.getModifiableElementInfo(lockRef);
 
     if (tiAccept.getLockObject() == lock){
@@ -109,19 +101,22 @@ public class JPF_java_net_Socket extends NativePeer {
       // acceptedSocket is a private field in ServerSocket which is also the return value of 
       // ServerSocket.accept()
       int acceptedSocket = env.getElementInfo(serverRef).getReferenceField("acceptedSocket");
-      shareIOStreams(env, socketRef, acceptedSocket);
+      //setSharedBuffers(env, socketRef, acceptedSocket, serverRef);
+      
+      env.getModifiableElementInfo(acceptedSocket).setReferenceField("clientEnd", socketRef);
+      
+      env.getModifiableElementInfo(serverRef).setReferenceField("waitingThread", MJIEnv.NULL);
       
       lock.notifies(ss, ti, false);
       
       // connection is established with a server, then just set the client info
-      connections.setClientInfoFor(conn, socketRef, vm.getApplicationContext(socketRef), conn.getServerHost());
+      conn.establishedConnWithClient(socketRef, vm.getApplicationContext(socketRef), conn.getServerHost());
 
       ChoiceGenerator<?> cg = NasSchedulingChoices.createConnectCG(ti);
       if (cg != null){
         ss.setNextChoiceGenerator(cg);
         // env.repeatInvocation(); 
       }
-      System.out.println("Client> done sending ...");
     }
   }
   
@@ -130,7 +125,7 @@ public class JPF_java_net_Socket extends NativePeer {
     
     connections.addNewPendingClientConn(socketRef, port, host);
     
-    int lock = env.getReferenceField( socketRef, "clientLock");
+    int lock = env.getReferenceField( socketRef, "lock");
     ElementInfo ei = env.getModifiableElementInfo(lock);
     
     env.getElementInfo(socketRef).setReferenceField("waitingThread", ti.getThreadObjectRef());
@@ -143,31 +138,9 @@ public class JPF_java_net_Socket extends NativePeer {
     env.setMandatoryNextChoiceGenerator(cg, "no CG on blocking Socket.connect()");
     env.repeatInvocation();
   }
-
-  /**
-   * makes the socket1 to share its buffer with socket2
-   *    socket2.input.buffer.data <= socket1.output.buffer.data
-   *    socket2.output.buffer.data <= socket1.input.buffer.data
-   */
-  protected static void shareIOStreams(MJIEnv env, int socket1, int socket2) {
-    int inRef1 = env.getElementInfo(socket1).getReferenceField("input");
-    int inBufferRef1 = env.getElementInfo(inRef1).getReferenceField("buffer");
-  
-    int outRef1 = env.getElementInfo(socket1).getReferenceField("output");
-    int outBufferRef1 = env.getElementInfo(outRef1).getReferenceField("buffer");
-    
-    int inRef2 = env.getElementInfo(socket2).getReferenceField("input");
-    env.getModifiableElementInfo(inRef2).setReferenceField("buffer", outBufferRef1);
-    
-    int outRef2 = env.getElementInfo(socket2).getReferenceField("output");
-    env.getModifiableElementInfo(outRef2).setReferenceField("buffer", inBufferRef1);
-  }
   
   @MJI
-  public void closeConnection____V (MJIEnv env, int socketRef) {
-    int inputStreamRef = env.getElementInfo(socketRef).getReferenceField("input");
-    int bufferRef = env.getElementInfo(inputStreamRef).getReferenceField("buffer");
-    env.getModifiableElementInfo(bufferRef).setBooleanField("closed", true);
+  public void close____V (MJIEnv env, int socketRef) {
     connections.closeConnections(socketRef);
   }
 }

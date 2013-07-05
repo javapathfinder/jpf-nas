@@ -70,10 +70,6 @@ public class JPF_java_net_ServerSocket extends NativePeer {
     return port;
   }
   
-  // this is a specialized, native wait that does not require a lock, and that can
-  // be turned off by a preceding unpark() call (which is not accumulative)
-  // park can be interrupted, but it doesn't throw an InterruptedException, and it doesn't clear the status
-  // it can only be called from the current (parking) thread
   @MJI
   public void acceptConnectionRequest____V (MJIEnv env, int serverSocketRef) {
     ThreadInfo ti = env.getThreadInfo();
@@ -100,14 +96,12 @@ public class JPF_java_net_ServerSocket extends NativePeer {
       // In this case, there a client that is waiting to connect to this server,
       // then let's establish the connection and unblock the waiting client thread
       if(conn!=null && conn.isPending()) {
-        System.out.println("Server> connecting to the pending client: " + conn.getClient());
         unblockClientConnect(env, serverSocketRef, conn);
       } 
       // there is no client waiting to connect to this server, therefore let's create
       // a new server connection and blocks it until it receives a connection request 
       // from a client
       else {
-        System.out.println("Server> no client is waiting - creating new connection");
         blockServerAccept(env, serverSocketRef);
       }
     }
@@ -125,28 +119,26 @@ public class JPF_java_net_ServerSocket extends NativePeer {
     }
     
     SystemState ss = env.getSystemState();
-    int lockRef = env.getReferenceField( clientRef, "clientLock");
+    int lockRef = env.getReferenceField( clientRef, "lock");
     ElementInfo lock = env.getModifiableElementInfo(lockRef);
 
     if (tiConnect.getLockObject() == lock){
       VM vm = VM.getVM();
       
-      // makes the client socket to share its buffers with acceptedSocket which is the 
-      // return value of ServerSocket.accept()
       int acceptedSocket = env.getElementInfo(serverSocketRef).getReferenceField("acceptedSocket");
-      JPF_java_net_Socket.shareIOStreams(env, clientRef, acceptedSocket);
-       
+      env.getModifiableElementInfo(acceptedSocket).setReferenceField("clientEnd", clientRef);
+      env.getModifiableElementInfo(serverSocketRef).setReferenceField("waitingThread", MJIEnv.NULL);
+      
       lock.notifies(ss, ti, false);
       
       // connection is established with a client, then just set the server info
-      connections.setServerInfoFor(conn, serverSocketRef, vm.getApplicationContext(serverSocketRef));
+      conn.establishedConnWithServer(serverSocketRef, vm.getApplicationContext(serverSocketRef));
 
       ChoiceGenerator<?> cg = NasSchedulingChoices.createAcceptCG(ti);
       if (cg != null){
         ss.setNextChoiceGenerator(cg);
-        // env.repeatInvocation(); - no need to re-execute
+        // env.repeatInvocation();  no need to re-execute
       }
-      System.out.println("Server> done accepting and unblocking the client ...");
     }
   }
   
@@ -159,7 +151,7 @@ public class JPF_java_net_ServerSocket extends NativePeer {
     connections = Connections.getConnections();
     connections.addNewPendingServerConn(serverSocketRef, port, serverHost);
     
-    int lock = env.getReferenceField( serverSocketRef, "serverLock");
+    int lock = env.getReferenceField( serverSocketRef, "lock");
     ElementInfo ei = env.getModifiableElementInfo(lock);
     env.getElementInfo(serverSocketRef).setReferenceField("waitingThread", ti.getThreadObjectRef());
     
@@ -172,12 +164,6 @@ public class JPF_java_net_ServerSocket extends NativePeer {
     env.repeatInvocation(); // re-execute needed in case blocking server some how get interrupted
   }
   
-  @MJI
-  public int getConnectedClientSocket____Ljava_net_Socket_2 (MJIEnv env, int objRef) {
-    int rSocket = MJIEnv.NULL;
-    return rSocket;
-  }
-
   @MJI
   public void closeConnections____V (MJIEnv env, int serverSocketRef) {
     connections.closeConnections(serverSocketRef);
