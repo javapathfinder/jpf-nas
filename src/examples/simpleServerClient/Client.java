@@ -15,8 +15,10 @@ import java.net.UnknownHostException;
 public class Client {
   public static void main (String[] arguments) throws IOException {
     Socket socket = null;
-    final String HOST = "localhost";
+
+    final String HOST = java.net.InetAddress.getLocalHost().getHostName();
     final int PORT = 1024;
+
     try {
       socket = new Socket(HOST, PORT);
       int value;
