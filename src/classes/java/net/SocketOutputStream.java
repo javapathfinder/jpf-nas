@@ -20,5 +20,10 @@ public class SocketOutputStream extends OutputStream {
   public native void write (int b) throws IOException;
 
   @Override
-  public native void write(byte b[]) throws IOException;
+  public void write(byte b[]) throws IOException {
+    write(b, 0, b.length);
+  }
+  
+  @Override
+  public native void write(byte b[], int off, int len) throws IOException;
 }

@@ -17,8 +17,16 @@ public class SocketInputStream extends InputStream {
   }
 
   @Override
+  public native int available() throws IOException;
+  
+  @Override
   public native int read () throws IOException;
 
   @Override
-  public native int read (byte[] b) throws IOException;
+  public int read (byte[] b) throws IOException {
+    return read(b, 0, b.length);
+  }
+  
+  @Override
+  public native int read(byte b[], int off, int len) throws IOException;
 }

@@ -159,11 +159,15 @@ public class JPF_java_net_Socket extends NativePeer {
       // changes the close status of the socket
       env.getModifiableElementInfo(socketRef).setBooleanField("closed", true);
       
+      // unblock blocking-read if there is any
+      unblockRead(env, socketRef);
+      
       // closes the socket connection - Note: closing this socket will also 
       // close its InputStream and OutputStream
-      
+      // TODO: check if we need to close IOStream along with socket
       int clientEnd = JPF_java_net_SocketInputStream.getClientEnd(env, socketRef);
       connections.closeConnection(clientEnd);
+      
       return;
     } else { // first time
       // before closing the socket, creates a choice generator and re-execute the
@@ -174,6 +178,48 @@ public class JPF_java_net_Socket extends NativePeer {
         env.repeatInvocation();
         return;
       }
+    }
+  }
+  
+  /**
+   *  for now we look if the connection is "established" and if the other end is "blocked",
+   *  if so we just conclude this blocking read
+   */
+  // TODO: that this might not be enough when we include blocking write, it has to
+  // be extended then
+  protected void unblockRead(MJIEnv env, int socketRef) {
+    int clientEnd = JPF_java_net_SocketInputStream.getClientEnd(env, socketRef);
+    Connection conn = connections.getConnection(clientEnd);
+    
+    if(!conn.isEstablished()) {
+      // note that we are looking for blockedRead, therefore the connection has to
+      // be established by now.
+      return;
+    }
+    
+    int blockedReader;
+    if(clientEnd == socketRef) {
+      blockedReader = conn.getServer();
+    } else {
+      blockedReader = conn.getClient();
+    }
+    
+    int tiRef = env.getElementInfo(blockedReader).getReferenceField("waitingThread");
+    ThreadInfo tiRead = env.getThreadInfoForObjRef(tiRef);
+    // is the socket thread blocked?
+    if (tiRead == null || tiRead.isTerminated()){
+      return;
+    }
+    
+    SystemState ss = env.getSystemState();
+    int lockRef = env.getReferenceField( blockedReader, "lock");
+    ElementInfo lock = env.getModifiableElementInfo(lockRef);
+    
+    if (tiRead.getLockObject() == lock){
+      ThreadInfo ti = env.getThreadInfo();
+      env.getModifiableElementInfo(blockedReader).setReferenceField("waitingThread", MJIEnv.NULL);
+      
+      lock.notifies(ss, ti, false);
     }
   }
 }

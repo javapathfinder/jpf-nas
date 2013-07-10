@@ -7,6 +7,7 @@ import java.util.List;
 import gov.nasa.jpf.JPF;
 import gov.nasa.jpf.util.ArrayByteQueue;
 import gov.nasa.jpf.util.StateExtensionClient;
+import gov.nasa.jpf.util.StateExtensionListener;
 import gov.nasa.jpf.vm.ApplicationContext;
 import gov.nasa.jpf.vm.MJIEnv;
 import gov.nasa.jpf.vm.VM;
@@ -180,7 +181,7 @@ public class Connections implements StateExtensionClient<List<Connection>> {
       return client2server.poll().byteValue();
     }
     
-    public int clientRead() {    
+    public int clientRead() {
       // client reading ...
       return server2client.poll().byteValue();
     }
@@ -201,6 +202,14 @@ public class Connections implements StateExtensionClient<List<Connection>> {
     
     public boolean isClient2ServerBufferEmpty() {
       return client2server.isEmpty();
+    }
+    
+    public int server2ClientBufferSize() {
+      return server2client.size();
+    }
+    
+    public int client2ServerBufferSize() {
+      return client2server.size();
     }
   }
   
@@ -350,7 +359,7 @@ public class Connections implements StateExtensionClient<List<Connection>> {
 
   @Override
   public void registerListener (JPF jpf) {
-    DistributedStateExtensionListener<List<Connection>> sel = new DistributedStateExtensionListener<List<Connection>>(this);
+    StateExtensionListener<List<Connection>> sel = new StateExtensionListener<List<Connection>>(this);
     jpf.addSearchListener(sel);
   }
   

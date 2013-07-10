@@ -54,8 +54,13 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
   }
   
   @MJI
-  public int read___3B__I (MJIEnv env, int objRef, int desArrRef) {
+  public int read___3BII__I (MJIEnv env, int objRef, int bufferRef, int off, int len) {
     ThreadInfo ti = env.getThreadInfo();
+    
+    // if len is zero, then no bytes are read and 0 is returned
+    if(len == 0) {
+      return 0;
+    }
     
     // Note that we can only retrieve the connection using the client end cause
     // serverSocket can be connected to multiple clients at the time
@@ -63,17 +68,39 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
     int clientEnd = getClientEnd(env, socketRef);
     Connection conn = connections.getConnection(clientEnd);
     
-    if(ti.isFirstStepInsn()) { // re-execute after it got unblock, now do the read()
+    // if this end is closed, an exception should be thrown. If the socket at the 
+    // other end is closed just return EOF
+    if(conn.isClosed()) {
+      if(isThisEndClosed(env, objRef)) {
+        env.throwException("java.net.SocketException", "Socket closed");
+      }
+      return EOF;
+    }
+    
+    if(ti.isFirstStepInsn()) { // re-execute after it got unblock, now do the read()      
       // TODO - explore other cases! maybe it has got interrupted
-      return readByteArray(env, objRef, desArrRef, conn);
+      return readByteArray(env, objRef, bufferRef, conn, off, len);
     } else {
       if(isBufferEmpty(env, objRef, conn)) {
         blockRead(env, objRef, conn);
-        env.repeatInvocation(); // re-execute needed once server gets interrupted
+        env.repeatInvocation(); // re-execute is needed once server gets interrupted
         return -1;
       } else {
-        return readByteArray(env, objRef, desArrRef, conn);
+        return readByteArray(env, objRef, bufferRef, conn, off, len);
       }
+    }
+  }
+  
+  @MJI
+  public int available____I (MJIEnv env, int streamRef) {
+    int socketRef = env.getElementInfo(streamRef).getReferenceField("socket");
+    int clientEnd = getClientEnd(env, socketRef);
+    Connection conn = connections.getConnection(clientEnd);
+    
+    if(isClientAccess(env, streamRef)) {
+      return conn.server2ClientBufferSize();
+    } else {
+      return conn.client2ServerBufferSize();
     }
   }
   
@@ -106,13 +133,13 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
   
   // reads "some" bytes into a given array, represented by desArrRef and returns the
   // number of byte which are read
-  protected int readByteArray(MJIEnv env, int streamRef, int desArrRef, Connection conn) {
-    int len = env.getByteArrayObject(desArrRef).length;
-
+  protected int readByteArray(MJIEnv env, int streamRef, int desArrRef, Connection conn, int off, int len) {
     int n=0;
-    while(isBufferEmpty(env, streamRef, conn) && n<len) {
+    int i = off;
+    
+    while(!isBufferEmpty(env, streamRef, conn) && n<len) {
       int value = readByte(env, streamRef, conn);
-      env.getModifiableElementInfo(desArrRef).setByteElement(n, (byte)value);
+      env.getModifiableElementInfo(desArrRef).setByteElement(i++, (byte)value);
       n++;
     }
     

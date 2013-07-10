@@ -40,7 +40,7 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
   }
   
   @MJI
-  public void write___3B__V (MJIEnv env, int objRef, int dataRef) {
+  public void write___3BII__V (MJIEnv env, int objRef, int bufferRef, int off, int len) {
     int socketRef = env.getElementInfo(objRef).getReferenceField("socket");
     int clientEnd = JPF_java_net_SocketInputStream.getClientEnd(env, socketRef);
     Connection conn = connections.getConnection(clientEnd);
@@ -50,7 +50,7 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
       unblockRead(env, objRef, conn);
     }
     
-    writeByteArray(env, objRef, dataRef, conn);
+    writeByteArray(env, objRef, bufferRef, conn, off, len);
   }
   
   // unblocks a read which was waiting on an empty buffer
@@ -97,12 +97,14 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
   }
   
   // writes an array of byte, represented by dataRef, into this buffer
-  protected void writeByteArray(MJIEnv env, int streamRef, int arrValue, Connection conn) {
+  protected void writeByteArray(MJIEnv env, int streamRef, int arrValue, Connection conn, int off, int len) {
     byte[] values = env.getByteArrayObject(arrValue);
+    
+    int i = off;
     
     // TODO: for now we just assume, buffers never go out of space. We need to
     // handle full buffer blocking writes at some point
-    for(int i=0; i<values.length; i++) {
+    for(i=0; i<len; i++) {
       writeByte(env, streamRef, values[i], conn);
     }
   }

@@ -68,12 +68,6 @@ public class NasSchedulingChoices {
    * on an empty buffer, until the other end-point writes something
    */
   public static ChoiceGenerator<ThreadInfo> createBlockingReadCG (ThreadInfo tiRead){
-    SystemState ss = VM.getVM().getSystemState();
-
-    if (ss.isAtomic()) {
-      ss.setBlockedInAtomicSection();
-    }
-
     return new ThreadChoiceFromSet( BLOCKING_READ, getRunnables(tiRead), true);
   }
 
