@@ -1,0 +1,8 @@
+@using=jpf-nas
+
+target.0 = knockKnockExample.KnockKnockServer
+target.1 = knockKnockExample.KnockKnockClient
+
+search.multiple_errors = true
+
+listener+=,gov.nasa.jpf.listener.SimpleDot
