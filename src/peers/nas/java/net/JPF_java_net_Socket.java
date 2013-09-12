@@ -2,9 +2,9 @@ package nas.java.net;
 
 import java.net.SocketException;
 
-import nas.java.net.choice.NasSchedulingChoices;
-import nas.java.net.connection.Connections;
-import nas.java.net.connection.Connections.Connection;
+import nas.java.net.choice.Scheduler;
+import nas.java.net.connection.ConnectionManager;
+import nas.java.net.connection.ConnectionManager.Connection;
 import gov.nasa.jpf.annotation.MJI;
 import gov.nasa.jpf.vm.ApplicationContext;
 import gov.nasa.jpf.vm.ChoiceGenerator;
@@ -22,7 +22,7 @@ import gov.nasa.jpf.vm.VM;
  * @author Nastaran Shafiei
  */
 public class JPF_java_net_Socket extends NativePeer {
-  Connections connections = Connections.getConnections();
+  ConnectionManager connections = ConnectionManager.getConnections();
 
   protected boolean hostExists(MJIEnv env, String host) {
     ApplicationContext[] appContext = MultiProcessVM.getVM().getApplicationContexts();
@@ -120,7 +120,7 @@ public class JPF_java_net_Socket extends NativePeer {
       // connection is established with a server, then just set the client info
       conn.establishedConnWithClient(socketRef, vm.getApplicationContext(socketRef), conn.getServerHost());
 
-      ChoiceGenerator<?> cg = NasSchedulingChoices.createConnectCG(ti);
+      ChoiceGenerator<?> cg = Scheduler.createConnectCG(ti);
       if (cg != null){
         ss.setNextChoiceGenerator(cg);
         // env.repeatInvocation(); 
@@ -142,7 +142,7 @@ public class JPF_java_net_Socket extends NativePeer {
 
     assert ti.isWaiting();
 
-    ChoiceGenerator<?> cg = NasSchedulingChoices.createBlockingConnectCG(ti);
+    ChoiceGenerator<?> cg = Scheduler.createBlockingConnectCG(ti);
     env.setMandatoryNextChoiceGenerator(cg, "no CG on blocking Socket.connect()");
     env.repeatInvocation();
   }
@@ -173,7 +173,7 @@ public class JPF_java_net_Socket extends NativePeer {
       // before closing the socket, creates a choice generator and re-execute the
       // invocation of close()
       if(!closed) {
-        ChoiceGenerator<?> cg = NasSchedulingChoices.createSocketCloseCG(ti);
+        ChoiceGenerator<?> cg = Scheduler.createSocketCloseCG(ti);
         env.setMandatoryNextChoiceGenerator(cg, "no CG on Socket.close()");
         env.repeatInvocation();
         return;

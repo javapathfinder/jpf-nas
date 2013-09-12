@@ -5,15 +5,15 @@ import gov.nasa.jpf.vm.ChoiceGenerator;
 import gov.nasa.jpf.vm.ElementInfo;
 import gov.nasa.jpf.vm.MJIEnv;
 import gov.nasa.jpf.vm.ThreadInfo;
-import nas.java.net.choice.NasSchedulingChoices;
+import nas.java.net.choice.Scheduler;
 import gov.nasa.jpf.vm.NativePeer;
-import nas.java.net.connection.Connections;
-import nas.java.net.connection.Connections.Connection;
+import nas.java.net.connection.ConnectionManager;
+import nas.java.net.connection.ConnectionManager.Connection;
 
 public class JPF_java_net_SocketInputStream extends NativePeer {
   static int EOF = -1;
   
-  Connections connections = Connections.getConnections();
+  ConnectionManager connections = ConnectionManager.getConnections();
   
   @MJI
   public int read____I (MJIEnv env, int objRef) {
@@ -118,7 +118,7 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
     
     assert ti.isWaiting();
     
-    ChoiceGenerator<?> cg = NasSchedulingChoices.createBlockingReadCG(ti);
+    ChoiceGenerator<?> cg = Scheduler.createBlockingReadCG(ti);
     env.setMandatoryNextChoiceGenerator(cg, "no CG on blocking InputStream.read()");
   }
   

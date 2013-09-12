@@ -6,13 +6,13 @@ import gov.nasa.jpf.vm.ElementInfo;
 import gov.nasa.jpf.vm.MJIEnv;
 import gov.nasa.jpf.vm.SystemState;
 import gov.nasa.jpf.vm.ThreadInfo;
-import nas.java.net.choice.NasSchedulingChoices;
+import nas.java.net.choice.Scheduler;
 import gov.nasa.jpf.vm.NativePeer;
-import nas.java.net.connection.Connections;
-import nas.java.net.connection.Connections.Connection;
+import nas.java.net.connection.ConnectionManager;
+import nas.java.net.connection.ConnectionManager.Connection;
 
 public class JPF_java_net_SocketOutputStream extends NativePeer {
-  Connections connections = Connections.getConnections();
+  ConnectionManager connections = ConnectionManager.getConnections();
   
   @MJI
   public void write__I__V (MJIEnv env, int objRef, int value) {
@@ -73,7 +73,7 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
       
       lock.notifies(ss, ti, false);
       
-      ChoiceGenerator<?> cg = NasSchedulingChoices.createWriteCG(ti);
+      ChoiceGenerator<?> cg = Scheduler.createWriteCG(ti);
       if (cg != null){
         ss.setNextChoiceGenerator(cg);
         // env.repeatInvocation(); - no need to re-execute

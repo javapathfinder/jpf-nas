@@ -12,19 +12,19 @@ import gov.nasa.jpf.vm.ApplicationContext;
 import gov.nasa.jpf.vm.MJIEnv;
 import gov.nasa.jpf.vm.VM;
 
-import nas.java.net.connection.Connections.Connection;
+import nas.java.net.connection.ConnectionManager.Connection;
 
 /**
  * It captures the current states of all connections made along this execution paths
  * 
  * @author Nastaran Shafiei
  */
-public class Connections implements StateExtensionClient<List<Connection>> {
+public class ConnectionManager implements StateExtensionClient<List<Connection>> {
 
   // the list of all connections established along "this" execution path
   public List<Connection> curr;
 
-  Connections() {
+  ConnectionManager() {
     this.curr = new ArrayList<Connection>();
   }
 
@@ -216,14 +216,14 @@ public class Connections implements StateExtensionClient<List<Connection>> {
   
   /*------ connections management ------*/
   
-  static Connections connections;
+  static ConnectionManager connections;
 
   static {
-    connections = new Connections();
+    connections = new ConnectionManager();
     connections.registerListener(VM.getVM().getJPF());
   }
 
-  public static Connections getConnections() {
+  public static ConnectionManager getConnections() {
     return connections;
   }
   

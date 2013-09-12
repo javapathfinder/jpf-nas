@@ -11,9 +11,9 @@ import gov.nasa.jpf.vm.SystemClassLoaderInfo;
 import gov.nasa.jpf.vm.SystemState;
 import gov.nasa.jpf.vm.ThreadInfo;
 import gov.nasa.jpf.vm.VM;
-import nas.java.net.choice.NasSchedulingChoices;
-import nas.java.net.connection.Connections;
-import nas.java.net.connection.Connections.Connection;
+import nas.java.net.choice.Scheduler;
+import nas.java.net.connection.ConnectionManager;
+import nas.java.net.connection.ConnectionManager.Connection;
 
 /**
  * The native peer class for our java.net.ServerSocket
@@ -21,7 +21,7 @@ import nas.java.net.connection.Connections.Connection;
  * @author Nastaran Shafiei
  */
 public class JPF_java_net_ServerSocket extends NativePeer {
-  Connections connections = Connections.getConnections();
+  ConnectionManager connections = ConnectionManager.getConnections();
 
   @MJI
   public void CheckForAddressAlreadyInUse__I__V (MJIEnv env, int serverSocketRef, int port) {
@@ -134,7 +134,7 @@ public class JPF_java_net_ServerSocket extends NativePeer {
       // connection is established with a client, then just set the server info
       conn.establishedConnWithServer(serverSocketRef, vm.getApplicationContext(serverSocketRef));
 
-      ChoiceGenerator<?> cg = NasSchedulingChoices.createAcceptCG(ti);
+      ChoiceGenerator<?> cg = Scheduler.createAcceptCG(ti);
       if (cg != null) {
         ss.setNextChoiceGenerator(cg);
         // env.repeatInvocation(); no need to re-execute
@@ -148,7 +148,7 @@ public class JPF_java_net_ServerSocket extends NativePeer {
     String serverHost = getServerHost(env, serverSocketRef);
     int port = getServerPort(env, serverSocketRef);
 
-    connections = Connections.getConnections();
+    connections = ConnectionManager.getConnections();
     connections.addNewPendingServerConn(serverSocketRef, port, serverHost);
 
     int lock = env.getReferenceField(serverSocketRef, "lock");
@@ -159,7 +159,7 @@ public class JPF_java_net_ServerSocket extends NativePeer {
 
     assert ti.isWaiting();
 
-    ChoiceGenerator<?> cg = NasSchedulingChoices.createBlockingAcceptCG(ti);
+    ChoiceGenerator<?> cg = Scheduler.createBlockingAcceptCG(ti);
     env.setMandatoryNextChoiceGenerator(cg, "no CG on blocking ServerSocket.accept()");
     env.repeatInvocation(); // re-execute needed in case blocking server some
                             // how get interrupted

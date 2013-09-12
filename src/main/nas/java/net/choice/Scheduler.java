@@ -12,7 +12,7 @@ import gov.nasa.jpf.vm.choice.ThreadChoiceFromSet;
  * 
  * @author Nastaran Shafiei
  */
-public class NasSchedulingChoices {
+public class Scheduler {
 
   public static final String ACCEPT = "ACCEPT";
   public static final String BLOCKING_ACCEPT = "BLOCKING_ACCEPT";
