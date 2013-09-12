@@ -5,11 +5,14 @@ import java.util.Iterator;
 import java.util.List;
 
 import gov.nasa.jpf.JPF;
+import gov.nasa.jpf.ListenerAdapter;
 import gov.nasa.jpf.util.ArrayByteQueue;
 import gov.nasa.jpf.util.StateExtensionClient;
 import gov.nasa.jpf.util.StateExtensionListener;
 import gov.nasa.jpf.vm.ApplicationContext;
+import gov.nasa.jpf.vm.ElementInfo;
 import gov.nasa.jpf.vm.MJIEnv;
+import gov.nasa.jpf.vm.ThreadInfo;
 import gov.nasa.jpf.vm.VM;
 
 import nas.java.net.connection.ConnectionManager.Connection;
@@ -33,7 +36,8 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
     public enum State {
       PENDING,
       ESTABLISHED,
-      CLOSED
+      CLOSED,
+      TERMINATED
     };
 
     String serverHost;
@@ -158,6 +162,14 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
 
     public boolean isClosed() {
       return(this.state==State.CLOSED);
+    }
+    
+    private void terminate() {
+      this.state = State.TERMINATED;
+    }
+
+    public boolean isTerminated() {
+      return(this.state==State.TERMINATED);
     }
     
     public boolean isPending() {
@@ -326,8 +338,20 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
         return;
       }
     }
-    // there was not connection with the given endpoint
+    // there was not a connection with the given endpoint
     throw new ConnectionException("Could not find the connection to close");
+  }
+  
+  public void terminateConnection(int endpoint) {
+    Iterator<Connection> itr = curr.iterator();
+    while(itr.hasNext()) {
+      Connection conn = itr.next();
+
+      if(conn.isConnectionEndpoint(endpoint)) {
+        conn.terminate();
+        return;
+      }
+    }
   }
   
   // check if there exists a server with the given host and port 
@@ -349,7 +373,6 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
   @Override
   public List<Connection> getStateExtension () {
     return cloneConnections(this.curr);
-    //return curr;
   }
 
   @Override
@@ -361,6 +384,9 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
   public void registerListener (JPF jpf) {
     StateExtensionListener<List<Connection>> sel = new StateExtensionListener<List<Connection>>(this);
     jpf.addSearchListener(sel);
+    
+    ConnectionTerminationListener ctl = new ConnectionTerminationListener();
+    jpf.addVMListener(ctl);
   }
   
   // return a deep copy of the connections - a new clone is needed every time
@@ -375,5 +401,17 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
     }
     
     return cloneList;
+  }
+  
+  public class ConnectionTerminationListener extends ListenerAdapter {
+    
+    @Override
+    public void objectReleased(VM vm, ThreadInfo currentThread, ElementInfo releasedObject) {
+      if(releasedObject.instanceOf("Ljava.net.ServerSocket;") ||
+          releasedObject.instanceOf("Ljava.net.Socket;")) {
+        int objRef = releasedObject.getObjectRef();
+        terminateConnection(objRef);
+      }
+    }
   }
 }

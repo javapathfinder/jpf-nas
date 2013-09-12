@@ -193,7 +193,7 @@ public class JPF_java_net_Socket extends NativePeer {
     
     if(!conn.isEstablished()) {
       // note that we are looking for blockedRead, therefore the connection has to
-      // be established by now.
+      // be established by now or the other end has been terminated.
       return;
     }
     
