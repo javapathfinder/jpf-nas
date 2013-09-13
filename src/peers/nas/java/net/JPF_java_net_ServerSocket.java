@@ -134,7 +134,7 @@ public class JPF_java_net_ServerSocket extends NativePeer {
       // connection is established with a client, then just set the server info
       conn.establishedConnWithServer(serverSocketRef, vm.getApplicationContext(serverSocketRef));
 
-      ChoiceGenerator<?> cg = Scheduler.createAcceptCG(ti);
+      ChoiceGenerator<?> cg = Scheduler.createAcceptCG(ti, null);
       if (cg != null) {
         ss.setNextChoiceGenerator(cg);
         // env.repeatInvocation(); no need to re-execute
@@ -159,7 +159,7 @@ public class JPF_java_net_ServerSocket extends NativePeer {
 
     assert ti.isWaiting();
 
-    ChoiceGenerator<?> cg = Scheduler.createBlockingAcceptCG(ti);
+    ChoiceGenerator<?> cg = Scheduler.createBlockingAcceptCG(ti, null);
     env.setMandatoryNextChoiceGenerator(cg, "no CG on blocking ServerSocket.accept()");
     env.repeatInvocation(); // re-execute needed in case blocking server some
                             // how get interrupted

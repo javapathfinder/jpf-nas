@@ -118,7 +118,7 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
     
     assert ti.isWaiting();
     
-    ChoiceGenerator<?> cg = Scheduler.createBlockingReadCG(ti);
+    ChoiceGenerator<?> cg = Scheduler.createBlockingReadCG(ti, null);
     env.setMandatoryNextChoiceGenerator(cg, "no CG on blocking InputStream.read()");
   }
   

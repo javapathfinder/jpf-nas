@@ -120,7 +120,7 @@ public class JPF_java_net_Socket extends NativePeer {
       // connection is established with a server, then just set the client info
       conn.establishedConnWithClient(socketRef, vm.getApplicationContext(socketRef), conn.getServerHost());
 
-      ChoiceGenerator<?> cg = Scheduler.createConnectCG(ti);
+      ChoiceGenerator<?> cg = Scheduler.createConnectCG(ti, null);
       if (cg != null){
         ss.setNextChoiceGenerator(cg);
         // env.repeatInvocation(); 
@@ -142,7 +142,7 @@ public class JPF_java_net_Socket extends NativePeer {
 
     assert ti.isWaiting();
 
-    ChoiceGenerator<?> cg = Scheduler.createBlockingConnectCG(ti);
+    ChoiceGenerator<?> cg = Scheduler.createBlockingConnectCG(ti, null);
     env.setMandatoryNextChoiceGenerator(cg, "no CG on blocking Socket.connect()");
     env.repeatInvocation();
   }
@@ -173,7 +173,7 @@ public class JPF_java_net_Socket extends NativePeer {
       // before closing the socket, creates a choice generator and re-execute the
       // invocation of close()
       if(!closed) {
-        ChoiceGenerator<?> cg = Scheduler.createSocketCloseCG(ti);
+        ChoiceGenerator<?> cg = Scheduler.createSocketCloseCG(ti, null);
         env.setMandatoryNextChoiceGenerator(cg, "no CG on Socket.close()");
         env.repeatInvocation();
         return;

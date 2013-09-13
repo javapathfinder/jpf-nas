@@ -73,7 +73,7 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
       
       lock.notifies(ss, ti, false);
       
-      ChoiceGenerator<?> cg = Scheduler.createWriteCG(ti);
+      ChoiceGenerator<?> cg = Scheduler.createWriteCG(ti, null);
       if (cg != null){
         ss.setNextChoiceGenerator(cg);
         // env.repeatInvocation(); - no need to re-execute

@@ -1,5 +1,6 @@
 package nas.java.net.choice;
 
+import gov.nasa.jpf.Config;
 import gov.nasa.jpf.vm.ChoiceGenerator;
 import gov.nasa.jpf.vm.SystemState;
 import gov.nasa.jpf.vm.ThreadInfo;
@@ -22,6 +23,19 @@ public class Scheduler {
   public static final String BLOCKING_READ = "BLOCKING_READ";
   public static final String SOCKET_CLOSE = "SOCKET_CLOSE";
 
+  public static final String IO_EXCEPTION = "java.io.IOException";
+  public static final String TIMEOUT_EXCEPTION = "java.net.SocketTimeoutException";
+  public static final String[] EMPTY = new String[0];
+  
+  public static boolean failure_injection;
+  
+  /**
+   * This is invoked by VM.initSubsystems()
+   */
+  public static void init (Config config) {
+    failure_injection = config.getBoolean("scheduler.failure_injection", false);
+  }
+  
   protected static ThreadInfo[] getRunnables(ThreadInfo ti) {
     ThreadList tl = VM.getVM().getThreadList();
     return tl.getRunnableThreads();
@@ -31,54 +45,54 @@ public class Scheduler {
    * Creates a choice generator upon SocketServer.accept() which makes the server wait
    * for a connection request
    */
-  public static ChoiceGenerator<ThreadInfo> createBlockingAcceptCG (ThreadInfo tiAccept){
+  public static ChoiceGenerator<ThreadInfo> createBlockingAcceptCG (ThreadInfo tiAccept, String[] failures){
     SystemState ss = VM.getVM().getSystemState();
 
     if (ss.isAtomic()) {
       ss.setBlockedInAtomicSection();
     }
-
-    return new ThreadChoiceFromSet( BLOCKING_ACCEPT, getRunnables(tiAccept), true);
+    
+    return new NasThreadChoice( BLOCKING_ACCEPT, getRunnables(tiAccept), tiAccept, failures);
   }
 
   /**
    * Creates a choice generator upon Socket.connect() which makes the client to sent
    * a connection request to the server
    */
-  public static ChoiceGenerator<ThreadInfo> createConnectCG (ThreadInfo tiConnect){
-    return new ThreadChoiceFromSet( CONNECT, getRunnables(tiConnect), true);
+  public static ChoiceGenerator<ThreadInfo> createConnectCG (ThreadInfo tiConnect, String[] failures){
+    return new NasThreadChoice( CONNECT, getRunnables(tiConnect), tiConnect, failures);
   }
 
-  public static ChoiceGenerator<ThreadInfo> createBlockingConnectCG (ThreadInfo tiConnect){
+  public static ChoiceGenerator<ThreadInfo> createBlockingConnectCG (ThreadInfo tiConnect, String[] failures){
     SystemState ss = VM.getVM().getSystemState();
 
     if (ss.isAtomic()) {
       ss.setBlockedInAtomicSection();
     }
 
-    return new ThreadChoiceFromSet( BLOCKING_CONNECT, getRunnables(tiConnect), true);
+    return new NasThreadChoice( BLOCKING_CONNECT, getRunnables(tiConnect), tiConnect, failures);
   }
 
-  public static ChoiceGenerator<ThreadInfo> createAcceptCG (ThreadInfo tiConnect){
-    return new ThreadChoiceFromSet( ACCEPT, getRunnables(tiConnect), true);
+  public static ChoiceGenerator<ThreadInfo> createAcceptCG (ThreadInfo tiConnect, String[] failures){
+    return new NasThreadChoice( ACCEPT, getRunnables(tiConnect), tiConnect, failures);
   }
 
   /**
    * Creates a choice generator upon Socket.read() which makes the client/server wait
    * on an empty buffer, until the other end-point writes something
    */
-  public static ChoiceGenerator<ThreadInfo> createBlockingReadCG (ThreadInfo tiRead){
-    return new ThreadChoiceFromSet( BLOCKING_READ, getRunnables(tiRead), true);
+  public static ChoiceGenerator<ThreadInfo> createBlockingReadCG (ThreadInfo tiRead, String[] failures){
+    return new NasThreadChoice( BLOCKING_READ, getRunnables(tiRead), tiRead, failures);
   }
 
-  public static ChoiceGenerator<ThreadInfo> createWriteCG (ThreadInfo tiConnect){
-    return new ThreadChoiceFromSet( WRITE, getRunnables(tiConnect), true);
+  public static ChoiceGenerator<ThreadInfo> createWriteCG (ThreadInfo tiWrite, String[] failures){
+    return new NasThreadChoice( WRITE, getRunnables(tiWrite), tiWrite, failures);
   }
   
   /**
    * Creates a choice generator right before closing a socket
    */
-  public static ChoiceGenerator<ThreadInfo> createSocketCloseCG (ThreadInfo tiClose){
-    return new ThreadChoiceFromSet( SOCKET_CLOSE, getRunnables(tiClose), true);
+  public static ChoiceGenerator<ThreadInfo> createSocketCloseCG (ThreadInfo tiClose, String[] failures){
+    return new NasThreadChoice( SOCKET_CLOSE, getRunnables(tiClose), tiClose, failures);
   }
 }
