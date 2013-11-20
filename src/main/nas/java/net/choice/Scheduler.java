@@ -37,6 +37,10 @@ public class Scheduler {
     failure_injection = config.getBoolean("scheduler.failure_injection", false);
   }
   
+  public static boolean injectFailures() {
+    return failure_injection;
+  }
+  
   protected static ThreadInfo[] getRunnables(ThreadInfo ti) {
     ThreadList tl = VM.getVM().getThreadList();
     return tl.getRunnableThreads();

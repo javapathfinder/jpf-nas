@@ -21,20 +21,6 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
     int clientEnd = JPF_java_net_SocketInputStream.getClientEnd(env, socketRef);
     Connection conn = connections.getConnection(clientEnd);
     
-    if(conn.isClosed()) {
-      String msg;
-      if(JPF_java_net_SocketInputStream.isThisEndClosed(env, objRef)) {
-        msg = "Socket closed";
-      } else {
-        msg = "Broken pipe";
-      }
-      env.throwException("java.net.SocketException", msg);
-      return;
-    } else if(conn.isTerminated()) {
-      env.throwException("java.net.SocketException", "connection is terminated");
-      return;
-    }
-    
     ThreadInfo ti = env.getThreadInfo();
     if(ti.isFirstStepInsn()) { // re-execution
       if(Scheduler.failure_injection) {
@@ -49,6 +35,10 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
         }
       }
     } else {
+      if(isConnBroken(env, objRef, conn)) {
+        return;
+      }
+      
       // if it is empty, then there might be a read() waiting for someone to write 
       if(JPF_java_net_SocketInputStream.isBufferEmpty(env, objRef, conn)) {
         unblockRead(env, objRef, conn);
@@ -64,20 +54,6 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
     int clientEnd = JPF_java_net_SocketInputStream.getClientEnd(env, socketRef);
     Connection conn = connections.getConnection(clientEnd);
     
-    if(conn.isClosed()) {
-      String msg;
-      if(JPF_java_net_SocketInputStream.isThisEndClosed(env, objRef)) {
-        msg = "Socket closed";
-      } else {
-        msg = "Broken pipe";
-      }
-      env.throwException("java.net.SocketException", msg);
-      return;
-    } else if(conn.isTerminated()) {
-      env.throwException("java.net.SocketException", "connection is terminated");
-      return;
-    }
-    
     ThreadInfo ti = env.getThreadInfo();
     if(ti.isFirstStepInsn()) { // re-execution
       if(Scheduler.failure_injection) {
@@ -92,6 +68,10 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
         }
       }
     } else {
+      if(isConnBroken(env, objRef, conn)) {
+        return;
+      }
+      
       // if it is empty, then there might be a read() waiting for someone to write 
       if(JPF_java_net_SocketInputStream.isBufferEmpty(env, objRef, conn)) {
         unblockRead(env, objRef, conn);
@@ -99,6 +79,29 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
       
       writeByteArray(env, objRef, bufferRef, conn, off, len);
     }
+  }
+  
+  /**
+   * Writing on a closed or terminated connection requires throwing an exception
+   * 
+   * @return true if there is no exception, OW false
+   */
+  protected boolean isConnBroken(MJIEnv env, int objRef, Connection conn) {
+    boolean isConnBroken = false;
+    if(conn.isClosed()) {
+      String msg;
+      if(JPF_java_net_SocketInputStream.isThisEndClosed(env, objRef)) {
+        msg = "Socket closed";
+      } else {
+        msg = "Broken pipe";
+      }
+      env.throwException("java.net.SocketException", msg);
+      isConnBroken = true;
+    } else if(conn.isTerminated()) {
+      env.throwException("java.net.SocketException", "connection is terminated");
+      isConnBroken = true;
+    }
+    return isConnBroken;
   }
   
   // unblocks a read which was waiting on an empty buffer

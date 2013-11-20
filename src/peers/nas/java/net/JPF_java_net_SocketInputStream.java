@@ -26,34 +26,18 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
     int clientEnd = getClientEnd(env, socketRef);
     Connection conn = connections.getConnection(clientEnd);
     
-    // if this end is closed, an exception should be thrown. If the socket at the 
-    // other end is closed just return EOF
-    if(conn.isClosed()) {
-      if(isThisEndClosed(env, objRef)) {
-        env.throwException("java.net.SocketException", "Socket closed");
-      }
-      return EOF;
-    } else if(conn.isTerminated()) {
-      env.throwException("java.net.SocketException", "connection is terminated");
-      return EOF;
-    }
     
     if(ti.isFirstStepInsn()) { // re-execute after it got unblock, now do the read()
-      if(Scheduler.failure_injection) {
-        ChoiceGenerator<?> cg = env.getChoiceGenerator(); 
-        
-        if(cg!=null && (cg instanceof NasThreadChoice)) {
-          NasThreadChoice ncg = (NasThreadChoice)cg;
-          if(ncg.isExceptionChoice()) {
-            String e = ncg.getExceptionForCurrentChoice();
-            ti.createAndThrowException(e, "Injected at SocketInputStream.read()");
-            return EOF;
-          }
-        }
+      if(isInjectedFailureChoice(env)) {
+        return EOF;
+      } else {
+        return readByte(env, objRef, conn);
+      }
+    } else {
+      if(isConnBroken(env, objRef, conn)) {
+        return EOF;
       }
       
-      return readByte(env, objRef, conn);
-    } else {
       if(isBufferEmpty(env, objRef, conn)) {
         blockRead(env, objRef, conn);
         env.repeatInvocation(); // re-execute needed once server gets interrupted
@@ -62,12 +46,6 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
         return readByte(env, objRef, conn);
       }
     }
-  }
-  
-  public static boolean isThisEndClosed(MJIEnv env, int streamRef) {
-    int socket = env.getElementInfo(streamRef).getReferenceField("socket");
-    boolean closed =env.getElementInfo(socket).getBooleanField("closed");
-    return closed;
   }
   
   @MJI
@@ -85,35 +63,17 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
     int clientEnd = getClientEnd(env, socketRef);
     Connection conn = connections.getConnection(clientEnd);
     
-    // if this end is closed, an exception should be thrown. If the socket at the 
-    // other end is closed just return EOF
-    if(conn.isClosed()) {
-      if(isThisEndClosed(env, objRef)) {
-        env.throwException("java.net.SocketException", "Socket closed");
-      }
-      return EOF;
-    } else if(conn.isTerminated()) {
-      env.throwException("java.net.SocketException", "connection is terminated");
-      return EOF;
-    }
-    
     if(ti.isFirstStepInsn()) { // re-execute after it got unblock, now do the read()      
-      // TODO - explore other cases! maybe it has got interrupted
-      if(Scheduler.failure_injection) {
-        ChoiceGenerator<?> cg = env.getChoiceGenerator(); 
-        
-        if(cg!=null && (cg instanceof NasThreadChoice)) {
-          NasThreadChoice ncg = (NasThreadChoice)cg;
-          if(ncg.isExceptionChoice()) {
-            String e = ncg.getExceptionForCurrentChoice();
-            ti.createAndThrowException(e, "Injected " + e + " occured at SocketInputStream.read()");
-            return EOF;
-          }
-        }
+      if(isInjectedFailureChoice(env)) {
+        return EOF;
+      } else {      
+        return readByteArray(env, objRef, bufferRef, conn, off, len);
+      }
+    } else {
+      if(isConnBroken(env, objRef, conn)) {
+        return EOF;
       }
       
-      return readByteArray(env, objRef, bufferRef, conn, off, len);
-    } else {
       if(isBufferEmpty(env, objRef, conn)) {
         blockRead(env, objRef, conn);
         env.repeatInvocation(); // re-execute is needed once server gets interrupted
@@ -122,6 +82,54 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
         return readByteArray(env, objRef, bufferRef, conn, off, len);
       }
     }
+  }
+  
+  protected boolean isInjectedFailureChoice(MJIEnv env) {
+    boolean isInjectedFailureChoice = false;
+    ThreadInfo ti = env.getThreadInfo();
+    
+    if(Scheduler.injectFailures()) {
+      ChoiceGenerator<?> cg = env.getChoiceGenerator(); 
+      
+      if(cg!=null && (cg instanceof NasThreadChoice)) {
+        NasThreadChoice ncg = (NasThreadChoice)cg;
+        if(ncg.isExceptionChoice()) {
+          String e = ncg.getExceptionForCurrentChoice();
+          ti.createAndThrowException(e, "Injected at SocketInputStream.read()");
+          isInjectedFailureChoice = true;
+        }
+      }
+    }
+    
+    return isInjectedFailureChoice;
+  }
+  
+  /**
+   * Reading on a closed or terminated connection requires throwing an exception
+   * 
+   * @return true if there is no exception, OW false
+   */
+  protected boolean isConnBroken(MJIEnv env, int objRef, Connection conn) {
+    boolean isConnBroken = false;
+    
+    // if this end is closed, an exception should be thrown. If the socket at the 
+    // other end is closed just return EOF
+    if(conn.isClosed()) {
+      if(isThisEndClosed(env, objRef)) {
+        env.throwException("java.net.SocketException", "Socket closed");
+      }
+      isConnBroken = true;
+    } else if(conn.isTerminated()) {
+      env.throwException("java.net.SocketException", "connection is terminated");
+      isConnBroken = true;
+    }
+    return isConnBroken;
+  }
+  
+  public static boolean isThisEndClosed(MJIEnv env, int streamRef) {
+    int socket = env.getElementInfo(streamRef).getReferenceField("socket");
+    boolean closed =env.getElementInfo(socket).getBooleanField("closed");
+    return closed;
   }
   
   @MJI
