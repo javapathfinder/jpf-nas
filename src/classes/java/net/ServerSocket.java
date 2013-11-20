@@ -60,7 +60,7 @@ public class ServerSocket implements java.io.Closeable {
 
   private Thread waitingThread;
 
-  private native void acceptConnectionRequest ();
+  private native void accept0 ();
 
   /**
    * Using this server accepts the connection request and receives a new active
@@ -75,7 +75,7 @@ public class ServerSocket implements java.io.Closeable {
     // The IO buffers of this socket are shared natively with the client socket
     // at the other end
     acceptedSocket = new Socket();
-    acceptConnectionRequest();
+    accept0();
 
     return acceptedSocket;
   }
@@ -91,4 +91,9 @@ public class ServerSocket implements java.io.Closeable {
   // TODO: Throws IOException, if an I/O error occurs when closing the socket
   @Override
   public native synchronized void close ();
+  
+  private int timeout;
+  public void setSoTimeout(int timeout) {
+    this.timeout = timeout;
+  }
 }

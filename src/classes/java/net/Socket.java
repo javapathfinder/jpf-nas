@@ -87,4 +87,9 @@ public class Socket implements java.io.Closeable {
   // TODO: Throws IOException, if an I/O error occurs when closing the socket
   @Override
   public native void close() throws IOException;
+  
+  private int timeout;
+  public void setSoTimeout(int timeout) {
+    this.timeout = timeout;
+  }
 }
