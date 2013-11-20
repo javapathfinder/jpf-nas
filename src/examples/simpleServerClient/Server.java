@@ -37,4 +37,4 @@ public class Server {
       System.out.println("I/O error occured when opening the socket");
     }
   }
-}
+} 
