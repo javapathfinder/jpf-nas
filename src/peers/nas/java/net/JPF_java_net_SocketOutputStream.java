@@ -30,6 +30,9 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
       }
       env.throwException("java.net.SocketException", msg);
       return;
+    } else if(conn.isTerminated()) {
+      env.throwException("java.net.SocketException", "connection is terminated");
+      return;
     }
     
     ThreadInfo ti = env.getThreadInfo();
@@ -60,6 +63,20 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
     int socketRef = env.getElementInfo(objRef).getReferenceField("socket");
     int clientEnd = JPF_java_net_SocketInputStream.getClientEnd(env, socketRef);
     Connection conn = connections.getConnection(clientEnd);
+    
+    if(conn.isClosed()) {
+      String msg;
+      if(JPF_java_net_SocketInputStream.isThisEndClosed(env, objRef)) {
+        msg = "Socket closed";
+      } else {
+        msg = "Broken pipe";
+      }
+      env.throwException("java.net.SocketException", msg);
+      return;
+    } else if(conn.isTerminated()) {
+      env.throwException("java.net.SocketException", "connection is terminated");
+      return;
+    }
     
     ThreadInfo ti = env.getThreadInfo();
     if(ti.isFirstStepInsn()) { // re-execution
@@ -156,6 +173,16 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
     } else {
       return conn.getClient();
     }
+  }
+  
+  protected static void printWriter(MJIEnv env, int streamRef) {
+    String result;
+    if(JPF_java_net_SocketInputStream.isClientAccess(env, streamRef)) {
+      result = "Client Writing";
+    } else {
+      result = "Server Writing";
+    }
+    System.out.println(result);
   }
   
   protected String[] getInjectedExceptions() {

@@ -33,10 +33,12 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
         env.throwException("java.net.SocketException", "Socket closed");
       }
       return EOF;
+    } else if(conn.isTerminated()) {
+      env.throwException("java.net.SocketException", "connection is terminated");
+      return EOF;
     }
     
     if(ti.isFirstStepInsn()) { // re-execute after it got unblock, now do the read()
-      
       if(Scheduler.failure_injection) {
         ChoiceGenerator<?> cg = env.getChoiceGenerator(); 
         
@@ -90,11 +92,13 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
         env.throwException("java.net.SocketException", "Socket closed");
       }
       return EOF;
+    } else if(conn.isTerminated()) {
+      env.throwException("java.net.SocketException", "connection is terminated");
+      return EOF;
     }
     
     if(ti.isFirstStepInsn()) { // re-execute after it got unblock, now do the read()      
       // TODO - explore other cases! maybe it has got interrupted
-      
       if(Scheduler.failure_injection) {
         ChoiceGenerator<?> cg = env.getChoiceGenerator(); 
         
@@ -228,5 +232,15 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
     }
     
     return Scheduler.EMPTY;
+  }
+  
+  protected static void printReader(MJIEnv env, int streamRef) {
+    String result;
+    if(JPF_java_net_SocketInputStream.isClientAccess(env, streamRef)) {
+      result = "Client Reading";
+    } else {
+      result = "Server Reading";
+    }
+    System.out.println(result);
   }
 }
