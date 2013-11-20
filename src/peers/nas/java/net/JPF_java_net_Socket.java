@@ -2,6 +2,7 @@ package nas.java.net;
 
 import java.net.SocketException;
 
+import nas.java.net.choice.NasThreadChoice;
 import nas.java.net.choice.Scheduler;
 import nas.java.net.connection.ConnectionManager;
 import nas.java.net.connection.ConnectionManager.Connection;
@@ -56,6 +57,18 @@ public class JPF_java_net_Socket extends NativePeer {
           break;
         default:
           // nothing
+      }
+      
+      if(Scheduler.failure_injection) {
+        ChoiceGenerator<?> cg = env.getChoiceGenerator(); 
+        
+        if(cg!=null && (cg instanceof NasThreadChoice)) {
+          NasThreadChoice ncg = (NasThreadChoice)cg;
+          if(ncg.isExceptionChoice()) {
+            String e = ncg.getExceptionForCurrentChoice();
+            ti.createAndThrowException(e, "Injected at Socket.connect()");
+          }
+        }
       }
     } else { // first time
       boolean closed = env.getElementInfo(socketRef).getBooleanField("closed");
@@ -120,11 +133,13 @@ public class JPF_java_net_Socket extends NativePeer {
       // connection is established with a server, then just set the client info
       conn.establishedConnWithClient(socketRef, vm.getApplicationContext(socketRef), conn.getServerHost());
 
-      ChoiceGenerator<?> cg = Scheduler.createConnectCG(ti, null);
+      String[] exceptions = getInjectedExceptions();
+      
+      ChoiceGenerator<?> cg = Scheduler.createConnectCG(ti, exceptions);
       if (cg != null){
         ss.setNextChoiceGenerator(cg);
-        // env.repeatInvocation(); 
-      }
+        env.repeatInvocation(); 
+      } 
     }
   }
   
@@ -156,6 +171,19 @@ public class JPF_java_net_Socket extends NativePeer {
     if(ti.isFirstStepInsn()) { // re-execute
       assert !closed;
       
+      if(Scheduler.failure_injection) {
+        ChoiceGenerator<?> cg = env.getChoiceGenerator(); 
+        
+        if(cg!=null && (cg instanceof NasThreadChoice)) {
+          NasThreadChoice ncg = (NasThreadChoice)cg;
+          if(ncg.isExceptionChoice()) {
+            String e = ncg.getExceptionForCurrentChoice();
+            ti.createAndThrowException(e, "Injected at Socket.close()");
+            return;
+          }
+        }
+      }
+      
       // changes the close status of the socket
       env.getModifiableElementInfo(socketRef).setBooleanField("closed", true);
       
@@ -173,7 +201,8 @@ public class JPF_java_net_Socket extends NativePeer {
       // before closing the socket, creates a choice generator and re-execute the
       // invocation of close()
       if(!closed) {
-        ChoiceGenerator<?> cg = Scheduler.createSocketCloseCG(ti, null);
+        String[] exceptions = getInjectedExceptions();
+        ChoiceGenerator<?> cg = Scheduler.createSocketCloseCG(ti, exceptions);
         env.setMandatoryNextChoiceGenerator(cg, "no CG on Socket.close()");
         env.repeatInvocation();
         return;
@@ -221,5 +250,15 @@ public class JPF_java_net_Socket extends NativePeer {
       
       lock.notifies(ss, ti, false);
     }
+  }
+  
+  protected String[] getInjectedExceptions() {
+    
+    if(Scheduler.failure_injection) {
+      String[] exceptions = {Scheduler.IO_EXCEPTION};
+      return exceptions;
+    }
+    
+    return Scheduler.EMPTY;
   }
 }

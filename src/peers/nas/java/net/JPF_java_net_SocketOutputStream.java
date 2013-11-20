@@ -6,6 +6,7 @@ import gov.nasa.jpf.vm.ElementInfo;
 import gov.nasa.jpf.vm.MJIEnv;
 import gov.nasa.jpf.vm.SystemState;
 import gov.nasa.jpf.vm.ThreadInfo;
+import nas.java.net.choice.NasThreadChoice;
 import nas.java.net.choice.Scheduler;
 import gov.nasa.jpf.vm.NativePeer;
 import nas.java.net.connection.ConnectionManager;
@@ -31,12 +32,27 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
       return;
     }
     
-    // if it is empty, then there might be a read() waiting for someone to write 
-    if(JPF_java_net_SocketInputStream.isBufferEmpty(env, objRef, conn)) {
-      unblockRead(env, objRef, conn);
+    ThreadInfo ti = env.getThreadInfo();
+    if(ti.isFirstStepInsn()) { // re-execution
+      if(Scheduler.failure_injection) {
+        ChoiceGenerator<?> cg = env.getChoiceGenerator(); 
+        
+        if(cg!=null && (cg instanceof NasThreadChoice)) {
+          NasThreadChoice ncg = (NasThreadChoice)cg;
+          if(ncg.isExceptionChoice()) {
+            String e = ncg.getExceptionForCurrentChoice();
+            ti.createAndThrowException(e, "Injected at SocketOutputStream.write()");
+          }
+        }
+      }
+    } else {
+      // if it is empty, then there might be a read() waiting for someone to write 
+      if(JPF_java_net_SocketInputStream.isBufferEmpty(env, objRef, conn)) {
+        unblockRead(env, objRef, conn);
+      }
+      
+      writeByte(env, objRef, value, conn);
     }
-    
-    writeByte(env, objRef, value, conn);
   }
   
   @MJI
@@ -45,12 +61,27 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
     int clientEnd = JPF_java_net_SocketInputStream.getClientEnd(env, socketRef);
     Connection conn = connections.getConnection(clientEnd);
     
-    // if it is empty, then there might be a read() waiting for someone to write 
-    if(JPF_java_net_SocketInputStream.isBufferEmpty(env, objRef, conn)) {
-      unblockRead(env, objRef, conn);
+    ThreadInfo ti = env.getThreadInfo();
+    if(ti.isFirstStepInsn()) { // re-execution
+      if(Scheduler.failure_injection) {
+        ChoiceGenerator<?> cg = env.getChoiceGenerator(); 
+        
+        if(cg!=null && (cg instanceof NasThreadChoice)) {
+          NasThreadChoice ncg = (NasThreadChoice)cg;
+          if(ncg.isExceptionChoice()) {
+            String e = ncg.getExceptionForCurrentChoice();
+            ti.createAndThrowException(e, "Injected at SocketOutputStream.write()");
+          }
+        }
+      }
+    } else {
+      // if it is empty, then there might be a read() waiting for someone to write 
+      if(JPF_java_net_SocketInputStream.isBufferEmpty(env, objRef, conn)) {
+        unblockRead(env, objRef, conn);
+      }
+      
+      writeByteArray(env, objRef, bufferRef, conn, off, len);
     }
-    
-    writeByteArray(env, objRef, bufferRef, conn, off, len);
   }
   
   // unblocks a read which was waiting on an empty buffer
@@ -73,10 +104,20 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
       
       lock.notifies(ss, ti, false);
       
-      ChoiceGenerator<?> cg = Scheduler.createWriteCG(ti, null);
+      String[] exceptions = getInjectedExceptions();
+      
+      ChoiceGenerator<?> cg = Scheduler.createWriteCG(ti, exceptions);
       if (cg != null){
         ss.setNextChoiceGenerator(cg);
-        // env.repeatInvocation(); - no need to re-execute
+        env.repeatInvocation();
+      }
+    } else if(Scheduler.failure_injection) {
+      String[] exceptions = getInjectedExceptions(); 
+      
+      ChoiceGenerator<?> cg = Scheduler.injectExceptions(ti, exceptions);
+      if (cg != null) {
+        ss.setNextChoiceGenerator(cg);
+        env.repeatInvocation();
       }
     }
   }
@@ -115,5 +156,15 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
     } else {
       return conn.getClient();
     }
+  }
+  
+  protected String[] getInjectedExceptions() {
+    
+    if(Scheduler.failure_injection) {
+      String[] exceptions = {Scheduler.IO_EXCEPTION};
+      return exceptions;
+    }
+    
+    return Scheduler.EMPTY;
   }
 }

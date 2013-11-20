@@ -7,3 +7,5 @@ search.multiple_errors = true
 
 # creates a nice and readable dot-file including the state graph of this example
 listener+=,gov.nasa.jpf.listener.DistributedSimpleDot
+
+scheduler.failure_injection = true

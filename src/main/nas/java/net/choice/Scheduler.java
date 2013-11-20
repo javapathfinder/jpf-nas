@@ -22,6 +22,7 @@ public class Scheduler {
   public static final String WRITE = "WRITE";
   public static final String BLOCKING_READ = "BLOCKING_READ";
   public static final String SOCKET_CLOSE = "SOCKET_CLOSE";
+  public static final String EXCEPTIONS_INJECT = "EXCEPTIONS_INJECT";
 
   public static final String IO_EXCEPTION = "java.io.IOException";
   public static final String TIMEOUT_EXCEPTION = "java.net.SocketTimeoutException";
@@ -55,6 +56,10 @@ public class Scheduler {
     return new NasThreadChoice( BLOCKING_ACCEPT, getRunnables(tiAccept), tiAccept, failures);
   }
 
+  public static ChoiceGenerator<ThreadInfo> createAcceptCG (ThreadInfo tiConnect, String[] failures){
+    return new NasThreadChoice( ACCEPT, getRunnables(tiConnect), tiConnect, failures);
+  }
+  
   /**
    * Creates a choice generator upon Socket.connect() which makes the client to sent
    * a connection request to the server
@@ -71,10 +76,6 @@ public class Scheduler {
     }
 
     return new NasThreadChoice( BLOCKING_CONNECT, getRunnables(tiConnect), tiConnect, failures);
-  }
-
-  public static ChoiceGenerator<ThreadInfo> createAcceptCG (ThreadInfo tiConnect, String[] failures){
-    return new NasThreadChoice( ACCEPT, getRunnables(tiConnect), tiConnect, failures);
   }
 
   /**
@@ -94,5 +95,10 @@ public class Scheduler {
    */
   public static ChoiceGenerator<ThreadInfo> createSocketCloseCG (ThreadInfo tiClose, String[] failures){
     return new NasThreadChoice( SOCKET_CLOSE, getRunnables(tiClose), tiClose, failures);
+  }
+  
+  public static ChoiceGenerator<ThreadInfo> injectExceptions (ThreadInfo ti, String[] exceptions){
+    ThreadInfo[] runnable = {ti};
+    return new NasThreadChoice( EXCEPTIONS_INJECT, runnable, ti, exceptions);
   }
 }

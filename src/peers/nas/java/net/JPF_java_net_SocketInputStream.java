@@ -5,6 +5,7 @@ import gov.nasa.jpf.vm.ChoiceGenerator;
 import gov.nasa.jpf.vm.ElementInfo;
 import gov.nasa.jpf.vm.MJIEnv;
 import gov.nasa.jpf.vm.ThreadInfo;
+import nas.java.net.choice.NasThreadChoice;
 import nas.java.net.choice.Scheduler;
 import gov.nasa.jpf.vm.NativePeer;
 import nas.java.net.connection.ConnectionManager;
@@ -35,6 +36,20 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
     }
     
     if(ti.isFirstStepInsn()) { // re-execute after it got unblock, now do the read()
+      
+      if(Scheduler.failure_injection) {
+        ChoiceGenerator<?> cg = env.getChoiceGenerator(); 
+        
+        if(cg!=null && (cg instanceof NasThreadChoice)) {
+          NasThreadChoice ncg = (NasThreadChoice)cg;
+          if(ncg.isExceptionChoice()) {
+            String e = ncg.getExceptionForCurrentChoice();
+            ti.createAndThrowException(e, "Injected at SocketInputStream.read()");
+            return EOF;
+          }
+        }
+      }
+      
       return readByte(env, objRef, conn);
     } else {
       if(isBufferEmpty(env, objRef, conn)) {
@@ -79,6 +94,20 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
     
     if(ti.isFirstStepInsn()) { // re-execute after it got unblock, now do the read()      
       // TODO - explore other cases! maybe it has got interrupted
+      
+      if(Scheduler.failure_injection) {
+        ChoiceGenerator<?> cg = env.getChoiceGenerator(); 
+        
+        if(cg!=null && (cg instanceof NasThreadChoice)) {
+          NasThreadChoice ncg = (NasThreadChoice)cg;
+          if(ncg.isExceptionChoice()) {
+            String e = ncg.getExceptionForCurrentChoice();
+            ti.createAndThrowException(e, "Injected " + e + " occured at SocketInputStream.read()");
+            return EOF;
+          }
+        }
+      }
+      
       return readByteArray(env, objRef, bufferRef, conn, off, len);
     } else {
       if(isBufferEmpty(env, objRef, conn)) {
@@ -118,7 +147,9 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
     
     assert ti.isWaiting();
     
-    ChoiceGenerator<?> cg = Scheduler.createBlockingReadCG(ti, null);
+    String[] exceptions = getInjectedExceptions(env, streamRef);
+    
+    ChoiceGenerator<?> cg = Scheduler.createBlockingReadCG(ti, exceptions);
     env.setMandatoryNextChoiceGenerator(cg, "no CG on blocking InputStream.read()");
   }
   
@@ -180,5 +211,22 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
     } else {
       return conn.getServer();
     }
+  }
+  
+  protected String[] getInjectedExceptions(MJIEnv env, int objRef) {
+    if(Scheduler.failure_injection) {
+      int socketRef = env.getElementInfo(objRef).getReferenceField("socket");
+      int timeout = env.getElementInfo(socketRef).getIntField("timeout");
+      
+      if(timeout==0) {
+        String[] exceptions = {Scheduler.IO_EXCEPTION};
+        return exceptions;
+      } else {
+        String[] exceptions = {Scheduler.IO_EXCEPTION, Scheduler.TIMEOUT_EXCEPTION};
+        return exceptions;
+      }
+    }
+    
+    return Scheduler.EMPTY;
   }
 }

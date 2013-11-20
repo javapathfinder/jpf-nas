@@ -11,6 +11,7 @@ import gov.nasa.jpf.vm.SystemClassLoaderInfo;
 import gov.nasa.jpf.vm.SystemState;
 import gov.nasa.jpf.vm.ThreadInfo;
 import gov.nasa.jpf.vm.VM;
+import nas.java.net.choice.NasThreadChoice;
 import nas.java.net.choice.Scheduler;
 import nas.java.net.connection.ConnectionManager;
 import nas.java.net.connection.ConnectionManager.Connection;
@@ -69,7 +70,7 @@ public class JPF_java_net_ServerSocket extends NativePeer {
   }
 
   @MJI
-  public void acceptConnectionRequest____V (MJIEnv env, int serverSocketRef) {
+  public void accept0____V (MJIEnv env, int serverSocketRef) {
     ThreadInfo ti = env.getThreadInfo();
 
     if (ti.isFirstStepInsn()) { // re-executed
@@ -86,6 +87,18 @@ public class JPF_java_net_ServerSocket extends NativePeer {
         break;
       default:
         // nothing
+      }
+      
+      if(Scheduler.failure_injection) {
+        ChoiceGenerator<?> cg = env.getChoiceGenerator(); 
+        
+        if(cg!=null && (cg instanceof NasThreadChoice)) {
+          NasThreadChoice ncg = (NasThreadChoice)cg;
+          if(ncg.isExceptionChoice()) {
+            String e = ncg.getExceptionForCurrentChoice();
+            ti.createAndThrowException(e, "Injected at ServerSocket.accept()");
+          }
+        }
       }
     } else {
       String serverHost = getServerHost(env, serverSocketRef);
@@ -134,10 +147,12 @@ public class JPF_java_net_ServerSocket extends NativePeer {
       // connection is established with a client, then just set the server info
       conn.establishedConnWithServer(serverSocketRef, vm.getApplicationContext(serverSocketRef));
 
-      ChoiceGenerator<?> cg = Scheduler.createAcceptCG(ti, null);
+      String[] exceptions = getInjectedExceptions(env, serverSocketRef); 
+      
+      ChoiceGenerator<?> cg = Scheduler.createAcceptCG(ti, exceptions);
       if (cg != null) {
         ss.setNextChoiceGenerator(cg);
-        // env.repeatInvocation(); no need to re-execute
+        env.repeatInvocation();
       }
     }
   }
@@ -159,7 +174,9 @@ public class JPF_java_net_ServerSocket extends NativePeer {
 
     assert ti.isWaiting();
 
-    ChoiceGenerator<?> cg = Scheduler.createBlockingAcceptCG(ti, null);
+    String[] exceptions = getInjectedExceptions(env, serverSocketRef); 
+    
+    ChoiceGenerator<?> cg = Scheduler.createBlockingAcceptCG(ti, exceptions);
     env.setMandatoryNextChoiceGenerator(cg, "no CG on blocking ServerSocket.accept()");
     env.repeatInvocation(); // re-execute needed in case blocking server some
                             // how get interrupted
@@ -168,5 +185,21 @@ public class JPF_java_net_ServerSocket extends NativePeer {
   @MJI
   public void close____V (MJIEnv env, int serverSocketRef) {
     env.getModifiableElementInfo(serverSocketRef).setBooleanField("closed", true);
+  }
+  
+  protected String[] getInjectedExceptions(MJIEnv env, int serverSocketRef) {
+    
+    if(Scheduler.failure_injection) {
+      int timeout = env.getElementInfo(serverSocketRef).getIntField("timeout");
+      if(timeout==0) {
+        String[] exceptions = {Scheduler.IO_EXCEPTION};
+        return exceptions;
+      } else {
+        String[] exceptions = {Scheduler.IO_EXCEPTION, Scheduler.TIMEOUT_EXCEPTION};
+        return exceptions;
+      }
+    }
+    
+    return Scheduler.EMPTY;
   }
 }
