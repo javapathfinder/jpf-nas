@@ -1,0 +1,9 @@
+@using=jpf-nas
+
+target.0 = serverClient.Server
+target.1 = serverClient.Client
+target.2 = serverClient.Client
+
+search.multiple_errors = true
+
+listener+=gov.nasa.jpf.listener.DistributedSimpleDot

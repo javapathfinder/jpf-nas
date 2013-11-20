@@ -2,9 +2,7 @@
 
 target.0 = simpleServerClient.Server
 target.1 = simpleServerClient.Client
-target.2 = simpleServerClient.Client
 
 search.multiple_errors = true
 
-# creates a dot-file including the state graph of this example
 listener+=gov.nasa.jpf.listener.DistributedSimpleDot
