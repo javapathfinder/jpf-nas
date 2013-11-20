@@ -173,11 +173,7 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
     }
     
     public boolean isPending() {
-      if((this.state==State.PENDING)!=!(this.hasServer() && this.hasClient())) {
-        throw new ConnectionException("PENDING status does not math!");
-      }
-      
-      return(!(this.hasServer() && this.hasClient()));
+      return(!isTerminated() && !(this.hasServer() && this.hasClient()));
     }
     
     public String toString() {
