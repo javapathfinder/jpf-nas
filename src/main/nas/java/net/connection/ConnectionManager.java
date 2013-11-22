@@ -6,6 +6,7 @@ import java.util.List;
 
 import gov.nasa.jpf.JPF;
 import gov.nasa.jpf.ListenerAdapter;
+import gov.nasa.jpf.search.Search;
 import gov.nasa.jpf.util.ArrayByteQueue;
 import gov.nasa.jpf.util.StateExtensionClient;
 import gov.nasa.jpf.util.StateExtensionListener;
@@ -14,7 +15,6 @@ import gov.nasa.jpf.vm.ElementInfo;
 import gov.nasa.jpf.vm.MJIEnv;
 import gov.nasa.jpf.vm.ThreadInfo;
 import gov.nasa.jpf.vm.VM;
-
 import nas.java.net.connection.ConnectionManager.Connection;
 
 /**
@@ -44,10 +44,12 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
     State state;
     int port;
     
-    int server;
+    // ServerSocket Object
+    int serverPassiveSocket;
+    int serverEndSocket;
     ApplicationContext serverApp;
     
-    int client;
+    int clientEndSocket;
     ApplicationContext clientApp;
 
     // communication buffers
@@ -58,8 +60,9 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
       this.port = port;
       this.state = State.PENDING;
       
-      this.server = MJIEnv.NULL;
-      this.client = MJIEnv.NULL;
+      this.serverPassiveSocket = MJIEnv.NULL;
+      this.serverEndSocket = MJIEnv.NULL;
+      this.clientEndSocket = MJIEnv.NULL;
       
       server2client = new ArrayByteQueue();
       client2server = new ArrayByteQueue();
@@ -69,14 +72,18 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
       return this.port;
     }
 
-    public int getServer() {
-      return this.server;
+    public int getServerPassiveSocket() {
+      return this.serverPassiveSocket;
+    }
+    
+    public int getServerEndSocket() {
+      return this.serverEndSocket;
     }
 
-    public int getClient() {
-      return this.client;
+    public int getClientEndSocket() {
+      return this.clientEndSocket;
     }
-
+    
     public Object clone() {
       Connection clone = null;
 
@@ -91,8 +98,10 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
       return clone;
     }
 
-    private void setServerInfo(int server, ApplicationContext serverApp) {
-      this.server = server;
+    private void setServerInfo(int serverPassiveSocket, int serverEndSocket, ApplicationContext serverApp) {
+      this.serverPassiveSocket = serverPassiveSocket;
+      this.serverEndSocket = serverEndSocket;
+      
       this.serverApp = serverApp;
       this.serverHost = serverApp.getHost();
 
@@ -102,7 +111,7 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
     }
     
     private void setClientInfo(int client, ApplicationContext clientApp, String serverHost) {
-      this.client = client;
+      this.clientEndSocket = client;
       this.clientApp = clientApp;
       this.serverHost = serverHost;
 
@@ -111,17 +120,22 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
       }
     }
     
-    public void establishedConnWithServer(int server, ApplicationContext serverApp) {
+    private void setServerEndSocket(int serverEndSocket) {
+      this.serverEndSocket = serverEndSocket;
+    }
+    
+    public void establishedConnWithServer(int serverPassiverSocket, int serverEndSocket, ApplicationContext serverApp) {
       if(this.hasClient()) {
-        this.setServerInfo(server, serverApp);
+        this.setServerInfo(serverPassiverSocket, serverEndSocket, serverApp);
       } else {
         throw new ConnectionException();
       }
     }
     
-    public void establishedConnWithClient(int client, ApplicationContext clientApp, String host) {
+    public void establishedConnWithClient(int clientEndSocket, ApplicationContext clientApp, String host, int serverEndSocket) {
       if(this.hasServer()) {
-        this.setClientInfo(client, clientApp, host);
+        this.setClientInfo(clientEndSocket, clientApp, host);
+        this.setServerEndSocket(serverEndSocket);
       } else {
         throw new ConnectionException();
       }
@@ -136,16 +150,26 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
     }
 
     public boolean hasServer() {
-      return (this.server!=MJIEnv.NULL);
+      return (this.serverPassiveSocket!=MJIEnv.NULL);
     }
 
     public boolean hasClient() {
-      return (this.client!=MJIEnv.NULL);
+      return (this.clientEndSocket!=MJIEnv.NULL);
+    }
+    
+    public boolean isClientEndSocket(int socket) {
+      if(this.clientEndSocket == socket) {
+        return true;
+      } else if(this.serverEndSocket == socket){
+        return false;
+      } else {
+        throw new ConnectionException("the socket does not belong to this connection!");
+      }
     }
 
     // check if the given socket object is an end-point of this connection
     public boolean isConnectionEndpoint(int socket) {
-      return (this.client==socket || this.server==socket);
+      return (this.clientEndSocket==socket || this.serverEndSocket==socket);
     }
 
     private void establish() {
@@ -177,8 +201,8 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
     }
     
     public String toString() {
-      String result = "\nserver:" + this.server +" (host:" + this.serverHost +")" + " <---port:" + 
-        this.port + "--->" + " client:" + this.client + " ["+this.state+"]\n";
+      String result = "\nserverPassiveSocket: " + this.serverPassiveSocket + " serverEnd:" + this.serverEndSocket +" (host:" + this.serverHost +")" + " <---port:" + 
+        this.port + "--->" + " clientEnd:" + this.clientEndSocket + " ["+this.state+"]\n";
       result += "clinet>=>server buffer: " + client2server + "\n";
       result += "server>=>client buffer: " + server2client + "\n";
       return result;
@@ -301,7 +325,7 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
       Connection conn = itr.next();
 
       if(conn.hasClient()) {
-        if(conn.getClient()==endpoint || conn.getServer()==endpoint) {
+        if(conn.getClientEndSocket()==endpoint || conn.getServerEndSocket()==endpoint) {
           return conn;
         }
       }
@@ -310,10 +334,12 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
     return null;
   }
   
-  public void addNewPendingServerConn(int server, int port, String serverHost) {
+  public void addNewPendingServerConn(int serverPassiveSocket, int port, String serverHost) {
     VM vm = VM.getVM();
     Connection conn = new Connection(port);
-    conn.setServerInfo(server, vm.getApplicationContext(server));
+    // the server connection is pending, that is, we don't have serverEndSocket yet and 
+    // for now is set to null
+    conn.setServerInfo(serverPassiveSocket, MJIEnv.NULL, vm.getApplicationContext(serverPassiveSocket));
     this.curr.add(conn);
   }
 
@@ -347,6 +373,8 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
         conn.terminate();
         return;
       }
+      
+      
     }
   }
   
@@ -382,7 +410,7 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
     jpf.addSearchListener(sel);
     
     ConnectionTerminationListener ctl = new ConnectionTerminationListener();
-    jpf.addVMListener(ctl);
+    jpf.addListener(ctl);
   }
   
   // return a deep copy of the connections - a new clone is needed every time
@@ -400,13 +428,12 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
   }
   
   public class ConnectionTerminationListener extends ListenerAdapter {
-    
+
     @Override
     public void objectReleased(VM vm, ThreadInfo currentThread, ElementInfo releasedObject) {
-      if(releasedObject.instanceOf("Ljava.net.ServerSocket;") ||
-          releasedObject.instanceOf("Ljava.net.Socket;")) {
-        int objRef = releasedObject.getObjectRef();
-        terminateConnection(objRef);
+      if(releasedObject.instanceOf("Ljava.net.Socket;")) {
+        //int objRef = releasedObject.getObjectRef();
+        //terminateConnection(objRef);        
       }
     }
   }

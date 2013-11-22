@@ -23,27 +23,25 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
     // Note that we can only retrieve the connection using the client end cause
     // serverSocket can be connected to multiple clients at the time
     int socketRef = env.getElementInfo(objRef).getReferenceField("socket");
-    int clientEnd = getClientEnd(env, socketRef);
-    Connection conn = connections.getConnection(clientEnd);
-    
+    Connection conn = connections.getConnection(socketRef);
     
     if(ti.isFirstStepInsn()) { // re-execute after it got unblock, now do the read()
       if(isInjectedFailureChoice(env)) {
         return EOF;
       } else {
-        return readByte(env, objRef, conn);
+        return readByte(conn, socketRef);
       }
     } else {
       if(isConnBroken(env, objRef, conn)) {
         return EOF;
       }
       
-      if(isBufferEmpty(env, objRef, conn)) {
-        blockRead(env, objRef, conn);
+      if(isBufferEmpty(conn, socketRef)) {
+        blockRead(env, objRef, conn, socketRef);
         env.repeatInvocation(); // re-execute needed once server gets interrupted
         return -1;
       } else {
-        return readByte(env, objRef, conn);
+        return readByte(conn, socketRef);
       }
     }
   }
@@ -60,26 +58,25 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
     // Note that we can only retrieve the connection using the client end cause
     // serverSocket can be connected to multiple clients at the time
     int socketRef = env.getElementInfo(objRef).getReferenceField("socket");
-    int clientEnd = getClientEnd(env, socketRef);
-    Connection conn = connections.getConnection(clientEnd);
+    Connection conn = connections.getConnection(socketRef);
     
     if(ti.isFirstStepInsn()) { // re-execute after it got unblock, now do the read()      
       if(isInjectedFailureChoice(env)) {
         return EOF;
       } else {      
-        return readByteArray(env, objRef, bufferRef, conn, off, len);
+        return readByteArray(env, bufferRef, conn, socketRef, off, len);
       }
     } else {
       if(isConnBroken(env, objRef, conn)) {
         return EOF;
       }
       
-      if(isBufferEmpty(env, objRef, conn)) {
-        blockRead(env, objRef, conn);
+      if(isBufferEmpty(conn, socketRef)) {
+        blockRead(env, objRef, conn, socketRef);
         env.repeatInvocation(); // re-execute is needed once server gets interrupted
         return -1;
       } else {
-        return readByteArray(env, objRef, bufferRef, conn, off, len);
+        return readByteArray(env, bufferRef, conn, socketRef, off, len);
       }
     }
   }
@@ -135,10 +132,9 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
   @MJI
   public int available____I (MJIEnv env, int streamRef) {
     int socketRef = env.getElementInfo(streamRef).getReferenceField("socket");
-    int clientEnd = getClientEnd(env, socketRef);
-    Connection conn = connections.getConnection(clientEnd);
+    Connection conn = connections.getConnection(socketRef);
     
-    if(isClientAccess(env, streamRef)) {
+    if(conn.isClientEndSocket(socketRef)) {
       return conn.server2ClientBufferSize();
     } else {
       return conn.client2ServerBufferSize();
@@ -146,10 +142,10 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
   }
   
   // makes the current thread get block on an empty buffer
-  protected void blockRead(MJIEnv env, int streamRef, Connection conn) {
+  protected void blockRead(MJIEnv env, int streamRef, Connection conn, int endpoint) {
     ThreadInfo ti = env.getThreadInfo();
     
-    int reader = getAccessor(env, streamRef, conn);
+    int reader = getAccessor(conn, endpoint);
     int lock = env.getElementInfo(reader).getReferenceField("lock");
     
     ElementInfo ei = env.getModifiableElementInfo(lock);
@@ -166,8 +162,8 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
   }
   
   // reads a single byte and returns its value
-  protected int readByte(MJIEnv env, int streamRef, Connection conn) {
-    if(isClientAccess(env, streamRef)) {
+  protected int readByte(Connection conn, int endpoint) {
+    if(conn.isClientEndSocket(endpoint)) {
       return conn.clientRead();
     } else {
       return conn.serverRead();
@@ -176,12 +172,12 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
   
   // reads "some" bytes into a given array, represented by desArrRef and returns the
   // number of byte which are read
-  protected int readByteArray(MJIEnv env, int streamRef, int desArrRef, Connection conn, int off, int len) {
+  protected int readByteArray(MJIEnv env, int desArrRef, Connection conn, int endpoint, int off, int len) {
     int n=0;
     int i = off;
     
-    while(!isBufferEmpty(env, streamRef, conn) && n<len) {
-      int value = readByte(env, streamRef, conn);
+    while(!isBufferEmpty(conn, endpoint) && n<len) {
+      int value = readByte(conn, endpoint);
       env.getModifiableElementInfo(desArrRef).setByteElement(i++, (byte)value);
       n++;
     }
@@ -189,39 +185,19 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
     return n;
   }
   
-  protected static boolean isBufferEmpty(MJIEnv env, int streamRef, Connection conn) {  
-    if(isClientAccess(env, streamRef)) {
+  protected static boolean isBufferEmpty(Connection conn, int endpoint) {  
+    if(conn.isClientEndSocket(endpoint)) {
       return conn.isServer2ClientBufferEmpty();
     } else {
       return conn.isClient2ServerBufferEmpty();
     }
   }
   
-  protected static int getClientEnd(MJIEnv env, int socketRef) {
-    // first check if this inputStream is for a client or a server
-    int clientEndRef = env.getElementInfo(socketRef).getReferenceField("clientEnd");
-    int clientRef;
-    
-    if(clientEndRef==MJIEnv.NULL) {
-      clientRef = socketRef;
+  protected static int getAccessor(Connection conn, int endpoint) {
+    if(conn.isClientEndSocket(endpoint)) {
+      return conn.getClientEndSocket();
     } else {
-      clientRef = clientEndRef;
-    }
-    
-    return clientRef;
-  }
-  
-  protected static boolean isClientAccess(MJIEnv env, int streamRef) {
-    int socketRef = env.getElementInfo(streamRef).getReferenceField("socket");
-    int clientEndRef = env.getElementInfo(socketRef).getReferenceField("clientEnd");
-    return (clientEndRef==MJIEnv.NULL);
-  }
-  
-  protected static int getAccessor(MJIEnv env, int streamRef, Connection conn) {
-    if(isClientAccess(env, streamRef)) {
-      return conn.getClient();
-    } else {
-      return conn.getServer();
+      return conn.getServerPassiveSocket();
     }
   }
   
@@ -242,9 +218,9 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
     return Scheduler.EMPTY;
   }
   
-  protected static void printReader(MJIEnv env, int streamRef) {
+  protected static void printReader(Connection conn, int endpoint) {
     String result;
-    if(JPF_java_net_SocketInputStream.isClientAccess(env, streamRef)) {
+    if(conn.isClientEndSocket(endpoint)) {
       result = "Client Reading";
     } else {
       result = "Server Reading";

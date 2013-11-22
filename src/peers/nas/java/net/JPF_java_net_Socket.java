@@ -102,10 +102,10 @@ public class JPF_java_net_Socket extends NativePeer {
     }
   }
   
-  protected void unblockServerAccept(MJIEnv env, int socketRef, Connection conn) {
+  protected void unblockServerAccept(MJIEnv env, int clientEndSocket, Connection conn) {
     ThreadInfo ti = env.getThreadInfo();
     
-    int serverRef = conn.getServer();
+    int serverRef = conn.getServerPassiveSocket();
     
     int tiRef = env.getElementInfo(serverRef).getReferenceField("waitingThread");
     ThreadInfo tiAccept = env.getThreadInfoForObjRef(tiRef);    
@@ -122,16 +122,14 @@ public class JPF_java_net_Socket extends NativePeer {
       // acceptedSocket is a private field in ServerSocket which is also the return value of 
       // ServerSocket.accept()
       int acceptedSocket = env.getElementInfo(serverRef).getReferenceField("acceptedSocket");
-      //setSharedBuffers(env, socketRef, acceptedSocket, serverRef);
-      
-      env.getModifiableElementInfo(acceptedSocket).setReferenceField("clientEnd", socketRef);
       
       env.getModifiableElementInfo(serverRef).setReferenceField("waitingThread", MJIEnv.NULL);
       
       lock.notifies(ss, ti, false);
       
       // connection is established with a server, then just set the client info
-      conn.establishedConnWithClient(socketRef, vm.getApplicationContext(socketRef), conn.getServerHost());
+      conn.establishedConnWithClient(clientEndSocket, vm.getApplicationContext(clientEndSocket), 
+                                     conn.getServerHost(), acceptedSocket);
 
       String[] exceptions = getInjectedExceptions();
       
@@ -193,8 +191,7 @@ public class JPF_java_net_Socket extends NativePeer {
       // closes the socket connection - Note: closing this socket will also 
       // close its InputStream and OutputStream
       // TODO: check if we need to close IOStream along with socket
-      int clientEnd = JPF_java_net_SocketInputStream.getClientEnd(env, socketRef);
-      connections.closeConnection(clientEnd);
+      connections.closeConnection(socketRef);
       
       return;
     } else { // first time
@@ -217,8 +214,7 @@ public class JPF_java_net_Socket extends NativePeer {
   // TODO: that this might not be enough when we include blocking write, it has to
   // be extended then
   protected void unblockRead(MJIEnv env, int socketRef) {
-    int clientEnd = JPF_java_net_SocketInputStream.getClientEnd(env, socketRef);
-    Connection conn = connections.getConnection(clientEnd);
+    Connection conn = connections.getConnection(socketRef);
     
     if(!conn.isEstablished()) {
       // note that we are looking for blockedRead, therefore the connection has to
@@ -227,10 +223,10 @@ public class JPF_java_net_Socket extends NativePeer {
     }
     
     int blockedReader;
-    if(clientEnd == socketRef) {
-      blockedReader = conn.getServer();
+    if(conn.isClientEndSocket(socketRef)) {
+      blockedReader = conn.getServerPassiveSocket();
     } else {
-      blockedReader = conn.getClient();
+      blockedReader = conn.getClientEndSocket();
     }
     
     int tiRef = env.getElementInfo(blockedReader).getReferenceField("waitingThread");

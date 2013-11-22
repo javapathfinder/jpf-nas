@@ -14,10 +14,6 @@ public class Socket implements java.io.Closeable {
   private SocketInputStream input = null;
   private SocketOutputStream output = null;
   
-  // only for socket objects returned by ServerSocket.accept() is natively set to
-  // non-null value which the client
-  final private Socket clientEnd = null;
-  
   /**
    * The implementation of this Socket.
    */

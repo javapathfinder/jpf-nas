@@ -104,7 +104,12 @@ public class JPF_java_net_ServerSocket extends NativePeer {
       String serverHost = getServerHost(env, serverSocketRef);
       int port = getServerPort(env, serverSocketRef);
       Connection conn = connections.getClientConn(port, serverHost);
-
+      
+      if(isClosed(env, serverSocketRef)) {
+        env.throwException("java.net.SocketException", "Socket is closed");
+        return;
+      }
+      
       // In this case, there a client that is waiting to connect to this server,
       // then let's establish the connection and unblock the waiting client
       // thread
@@ -122,10 +127,14 @@ public class JPF_java_net_ServerSocket extends NativePeer {
     }
   }
 
+  protected boolean isClosed(MJIEnv env, int serverSocketRef) {
+    return env.getElementInfo(serverSocketRef).getBooleanField("closed");
+  }
+  
   protected void unblockClientConnect (MJIEnv env, int serverSocketRef, Connection conn) {
     ThreadInfo ti = env.getThreadInfo();
 
-    int clientRef = conn.getClient();
+    int clientRef = conn.getClientEndSocket();
 
     int tiRef = env.getElementInfo(clientRef).getReferenceField("waitingThread");
     ThreadInfo tiConnect = env.getThreadInfoForObjRef(tiRef);
@@ -145,7 +154,7 @@ public class JPF_java_net_ServerSocket extends NativePeer {
       lock.notifies(ss, ti, false);
 
       // connection is established with a client, then just set the server info
-      conn.establishedConnWithServer(serverSocketRef, vm.getApplicationContext(serverSocketRef));
+      conn.establishedConnWithServer(serverSocketRef, acceptedSocket, vm.getApplicationContext(serverSocketRef));
 
       String[] exceptions = getInjectedExceptions(env, serverSocketRef); 
       
@@ -174,7 +183,7 @@ public class JPF_java_net_ServerSocket extends NativePeer {
 
     assert ti.isWaiting();
 
-    String[] exceptions = getInjectedExceptions(env, serverSocketRef); 
+    String[] exceptions = getInjectedExceptions(env, serverSocketRef);
     
     ChoiceGenerator<?> cg = Scheduler.createBlockingAcceptCG(ti, exceptions);
     env.setMandatoryNextChoiceGenerator(cg, "no CG on blocking ServerSocket.accept()");

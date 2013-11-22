@@ -18,8 +18,7 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
   @MJI
   public void write__I__V (MJIEnv env, int objRef, int value) {
     int socketRef = env.getElementInfo(objRef).getReferenceField("socket");
-    int clientEnd = JPF_java_net_SocketInputStream.getClientEnd(env, socketRef);
-    Connection conn = connections.getConnection(clientEnd);
+    Connection conn = connections.getConnection(socketRef);
     
     ThreadInfo ti = env.getThreadInfo();
     if(ti.isFirstStepInsn()) { // re-execution
@@ -40,19 +39,18 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
       }
       
       // if it is empty, then there might be a read() waiting for someone to write 
-      if(JPF_java_net_SocketInputStream.isBufferEmpty(env, objRef, conn)) {
-        unblockRead(env, objRef, conn);
+      if(JPF_java_net_SocketInputStream.isBufferEmpty(conn, socketRef)) {
+        unblockRead(env, conn, socketRef);
       }
       
-      writeByte(env, objRef, value, conn);
+      writeByte(value, conn, socketRef);
     }
   }
   
   @MJI
   public void write___3BII__V (MJIEnv env, int objRef, int bufferRef, int off, int len) {
     int socketRef = env.getElementInfo(objRef).getReferenceField("socket");
-    int clientEnd = JPF_java_net_SocketInputStream.getClientEnd(env, socketRef);
-    Connection conn = connections.getConnection(clientEnd);
+    Connection conn = connections.getConnection(socketRef);
     
     ThreadInfo ti = env.getThreadInfo();
     if(ti.isFirstStepInsn()) { // re-execution
@@ -73,11 +71,11 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
       }
       
       // if it is empty, then there might be a read() waiting for someone to write 
-      if(JPF_java_net_SocketInputStream.isBufferEmpty(env, objRef, conn)) {
-        unblockRead(env, objRef, conn);
+      if(JPF_java_net_SocketInputStream.isBufferEmpty(conn, socketRef)) {
+        unblockRead(env, conn, socketRef);
       }
       
-      writeByteArray(env, objRef, bufferRef, conn, off, len);
+      writeByteArray(env, bufferRef, conn, socketRef, off, len);
     }
   }
   
@@ -105,9 +103,9 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
   }
   
   // unblocks a read which was waiting on an empty buffer
-  protected void unblockRead(MJIEnv env, int streamRef, Connection conn) {
+  protected void unblockRead(MJIEnv env, Connection conn, int endpoint) {
     ThreadInfo ti = env.getThreadInfo();
-    int blockedReader = getOtherEndpoint(env, streamRef, conn);
+    int blockedReader = getOtherEndSocket(conn, endpoint);
     
     int tiRef = env.getElementInfo(blockedReader).getReferenceField("waitingThread");
     ThreadInfo tiRead = env.getThreadInfoForObjRef(tiRef);    
@@ -143,8 +141,8 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
   }
   
   // writes a single byte value into this buffer
-  protected void writeByte(MJIEnv env, int streamRef, int value, Connection conn) {
-    if(JPF_java_net_SocketInputStream.isClientAccess(env, streamRef)) {
+  protected void writeByte(int value, Connection conn, int endpoint) {
+    if(conn.isClientEndSocket(endpoint)) {
       conn.clientWrite((byte)value);
       if(conn.isClient2ServerBufferEmpty()) {
         throw new RuntimeException();
@@ -158,7 +156,7 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
   }
   
   // writes an array of byte, represented by dataRef, into this buffer
-  protected void writeByteArray(MJIEnv env, int streamRef, int arrValue, Connection conn, int off, int len) {
+  protected void writeByteArray(MJIEnv env, int arrValue, Connection conn, int endpoint, int off, int len) {
     byte[] values = env.getByteArrayObject(arrValue);
     
     int i = off;
@@ -166,26 +164,20 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
     // TODO: for now we just assume, buffers never go out of space. We need to
     // handle full buffer blocking writes at some point
     for(i=0; i<len; i++) {
-      writeByte(env, streamRef, values[i], conn);
+      writeByte(values[i], conn, endpoint);
     }
   }
   
-  protected static int getOtherEndpoint(MJIEnv env, int streamRef, Connection conn) {
-    if(JPF_java_net_SocketInputStream.isClientAccess(env, streamRef)) {
-      return conn.getServer();
+  public int getOtherEndSocket(Connection conn, int thisEnd) {
+    int otherEnd;
+    
+    if(conn.isClientEndSocket(thisEnd)) {
+      otherEnd = conn.getServerPassiveSocket();
     } else {
-      return conn.getClient();
+      otherEnd = conn.getClientEndSocket();
     }
-  }
-  
-  protected static void printWriter(MJIEnv env, int streamRef) {
-    String result;
-    if(JPF_java_net_SocketInputStream.isClientAccess(env, streamRef)) {
-      result = "Client Writing";
-    } else {
-      result = "Server Writing";
-    }
-    System.out.println(result);
+    
+    return otherEnd;
   }
   
   protected String[] getInjectedExceptions() {
@@ -196,5 +188,15 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
     }
     
     return Scheduler.EMPTY;
+  }
+  
+  protected static void printWriter(Connection conn, int endpoint) {
+    String result;
+    if(conn.isClientEndSocket(endpoint)) {
+      result = "Client Writing";
+    } else {
+      result = "Server Writing";
+    }
+    System.out.println(result);
   }
 }
