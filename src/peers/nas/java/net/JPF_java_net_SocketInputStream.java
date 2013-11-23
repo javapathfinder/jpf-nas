@@ -111,15 +111,13 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
     
     // if this end is closed, an exception should be thrown. If the socket at the 
     // other end is closed just return EOF
-    if(conn.isClosed()) {
+    if(conn.isClosed() || conn.isTerminated()) {
       if(isThisEndClosed(env, objRef)) {
         env.throwException("java.net.SocketException", "Socket closed");
       }
       isConnBroken = true;
-    } else if(conn.isTerminated()) {
-      env.throwException("java.net.SocketException", "connection is terminated");
-      isConnBroken = true;
     }
+    
     return isConnBroken;
   }
   

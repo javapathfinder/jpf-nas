@@ -86,7 +86,8 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
    */
   protected boolean isConnBroken(MJIEnv env, int objRef, Connection conn) {
     boolean isConnBroken = false;
-    if(conn.isClosed()) {
+    
+    if(conn.isClosed() || conn.isTerminated()) {
       String msg;
       if(JPF_java_net_SocketInputStream.isThisEndClosed(env, objRef)) {
         msg = "Socket closed";
@@ -95,10 +96,8 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
       }
       env.throwException("java.net.SocketException", msg);
       isConnBroken = true;
-    } else if(conn.isTerminated()) {
-      env.throwException("java.net.SocketException", "connection is terminated");
-      isConnBroken = true;
     }
+    
     return isConnBroken;
   }
   
