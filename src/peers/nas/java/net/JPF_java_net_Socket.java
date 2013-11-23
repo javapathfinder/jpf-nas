@@ -1,11 +1,9 @@
 package nas.java.net;
 
-import java.net.SocketException;
-
 import nas.java.net.choice.NasThreadChoice;
 import nas.java.net.choice.Scheduler;
 import nas.java.net.connection.ConnectionManager;
-import nas.java.net.connection.ConnectionManager.Connection;
+import nas.java.net.connection.Connection;
 import gov.nasa.jpf.annotation.MJI;
 import gov.nasa.jpf.vm.ApplicationContext;
 import gov.nasa.jpf.vm.ChoiceGenerator;

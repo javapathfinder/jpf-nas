@@ -9,7 +9,7 @@ import nas.java.net.choice.NasThreadChoice;
 import nas.java.net.choice.Scheduler;
 import gov.nasa.jpf.vm.NativePeer;
 import nas.java.net.connection.ConnectionManager;
-import nas.java.net.connection.ConnectionManager.Connection;
+import nas.java.net.connection.Connection;
 
 public class JPF_java_net_SocketInputStream extends NativePeer {
   static int EOF = -1;

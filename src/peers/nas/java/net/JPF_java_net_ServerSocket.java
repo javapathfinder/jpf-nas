@@ -14,7 +14,7 @@ import gov.nasa.jpf.vm.VM;
 import nas.java.net.choice.NasThreadChoice;
 import nas.java.net.choice.Scheduler;
 import nas.java.net.connection.ConnectionManager;
-import nas.java.net.connection.ConnectionManager.Connection;
+import nas.java.net.connection.Connection;
 
 /**
  * The native peer class for our java.net.ServerSocket
@@ -117,10 +117,8 @@ public class JPF_java_net_ServerSocket extends NativePeer {
         unblockClientConnect(env, serverSocketRef, conn);
       }
       // there is no client waiting to connect to this server, therefore let's
-      // create
-      // a new server connection and blocks it until it receives a connection
-      // request
-      // from a client
+      // create a new server connection and blocks it until it receives a connection
+      // request from a client
       else {
         blockServerAccept(env, serverSocketRef);
       }
