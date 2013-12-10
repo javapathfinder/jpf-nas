@@ -104,10 +104,11 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
   // unblocks a read which was waiting on an empty buffer
   protected void unblockRead(MJIEnv env, Connection conn, int endpoint) {
     ThreadInfo ti = env.getThreadInfo();
-    int blockedReader = getOtherEndSocket(conn, endpoint);
+    int blockedReader = getOtherEnd(conn, endpoint);
     
     int tiRef = env.getElementInfo(blockedReader).getReferenceField("waitingThread");
-    ThreadInfo tiRead = env.getThreadInfoForObjRef(tiRef);    
+    ThreadInfo tiRead = env.getThreadInfoForObjRef(tiRef);
+    
     if (tiRead == null || tiRead.isTerminated()){
       return;
     }
@@ -167,16 +168,12 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
     }
   }
   
-  public int getOtherEndSocket(Connection conn, int thisEnd) {
-    int otherEnd;
-    
-    if(conn.isClientEndSocket(thisEnd)) {
-      otherEnd = conn.getServerPassiveSocket();
+  protected static int getOtherEnd(Connection conn, int endpoint) {
+    if(conn.isClientEndSocket(endpoint)) {
+      return conn.getServerEndSocket();
     } else {
-      otherEnd = conn.getClientEndSocket();
+      return conn.getClientEndSocket();
     }
-    
-    return otherEnd;
   }
   
   protected String[] getInjectedExceptions() {

@@ -80,17 +80,22 @@ public class JPF_java_net_Socket extends NativePeer {
         return;
       }
 
-      Connection conn = connections.getServerPendingConn(port, host);
+      Connection conn = connections.getPendingServerConn(port, host);
 
       // there is no server accept associated with this address
       if(conn==null && !connections.hasServerConn(port, host)) {
         env.throwException("java.io.IOException");
         return;
-      }       
+      }
+      
+      assert(!closed);
+      assert(!conn.isEstablished());
+      
       // there is a server accept which is pending (i.e., waiting for the client request).
       // In this case, we connect this client to the pending server and unblock the server
-      else if(conn!=null && conn.isPending()){
+      if(conn!=null && conn.isPending()){
         unblockServerAccept(env, socketRef, conn);
+        assert(conn.isEstablished());
       }
       // there is a server accept but it is connected to some other client. In this case
       // the client blocks until it gets picked up by another server accept.
@@ -104,7 +109,6 @@ public class JPF_java_net_Socket extends NativePeer {
     ThreadInfo ti = env.getThreadInfo();
     
     int serverRef = conn.getServerPassiveSocket();
-    
     int tiRef = env.getElementInfo(serverRef).getReferenceField("waitingThread");
     ThreadInfo tiAccept = env.getThreadInfoForObjRef(tiRef);    
     if (tiAccept == null || tiAccept.isTerminated()){
@@ -180,11 +184,12 @@ public class JPF_java_net_Socket extends NativePeer {
         }
       }
       
-      // changes the close status of the socket
-      env.getModifiableElementInfo(socketRef).setBooleanField("closed", true);
       
       // unblock blocking-read if there is any
       unblockRead(env, socketRef);
+      
+      // changes the close status of the socket
+      env.getModifiableElementInfo(socketRef).setBooleanField("closed", true);
       
       // closes the socket connection - Note: closing this socket will also 
       // close its InputStream and OutputStream
@@ -206,10 +211,10 @@ public class JPF_java_net_Socket extends NativePeer {
   }
   
   /**
-   *  for now we look if the connection is "established" and if the other end is "blocked",
+   *  for now we check if the connection is "established" and if the other end is "blocked",
    *  if so we just conclude this blocking read
    */
-  // TODO: that this might not be enough when we include blocking write, it has to
+  // TODO: note that this might not be enough when we include blocking write, it has to
   // be extended then
   protected void unblockRead(MJIEnv env, int socketRef) {
     Connection conn = connections.getConnection(socketRef);
@@ -222,7 +227,7 @@ public class JPF_java_net_Socket extends NativePeer {
     
     int blockedReader;
     if(conn.isClientEndSocket(socketRef)) {
-      blockedReader = conn.getServerPassiveSocket();
+      blockedReader = conn.getServerEndSocket();
     } else {
       blockedReader = conn.getClientEndSocket();
     }
@@ -244,6 +249,13 @@ public class JPF_java_net_Socket extends NativePeer {
       
       lock.notifies(ss, ti, false);
     }
+  }
+  
+  @MJI
+  public boolean isConnected____Z (MJIEnv env, int socketRef) {
+    Connection conn = connections.getConnection(socketRef);
+    
+    return conn!=null && conn.isEstablished();
   }
   
   protected String[] getInjectedExceptions() {

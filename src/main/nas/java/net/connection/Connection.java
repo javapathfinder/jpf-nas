@@ -5,7 +5,7 @@ import gov.nasa.jpf.vm.ApplicationContext;
 import gov.nasa.jpf.vm.MJIEnv;
 
 public class Connection  implements Cloneable {
-  
+
   public enum State {
     PENDING,
     ESTABLISHED,

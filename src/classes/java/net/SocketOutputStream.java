@@ -26,4 +26,15 @@ public class SocketOutputStream extends OutputStream {
   
   @Override
   public native void write(byte b[], int off, int len) throws IOException;
+  
+  private boolean closed = false;
+  
+  @Override
+  public void close() throws IOException {
+    if (closed) {
+      return;
+    }
+    closed = true;
+    socket.close();
+  }
 }

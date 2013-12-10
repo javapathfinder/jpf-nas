@@ -103,7 +103,7 @@ public class JPF_java_net_ServerSocket extends NativePeer {
     } else {
       String serverHost = getServerHost(env, serverSocketRef);
       int port = getServerPort(env, serverSocketRef);
-      Connection conn = connections.getClientConn(port, serverHost);
+      Connection conn = connections.getPendingClientConn(port, serverHost);
       
       if(isClosed(env, serverSocketRef)) {
         env.throwException("java.net.SocketException", "Socket is closed");
@@ -146,7 +146,7 @@ public class JPF_java_net_ServerSocket extends NativePeer {
       VM vm = VM.getVM();
 
       int acceptedSocket = env.getElementInfo(serverSocketRef).getReferenceField("acceptedSocket");
-      env.getModifiableElementInfo(acceptedSocket).setReferenceField("clientEnd", clientRef);
+
       env.getModifiableElementInfo(serverSocketRef).setReferenceField("waitingThread", MJIEnv.NULL);
 
       lock.notifies(ss, ti, false);

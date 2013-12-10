@@ -28,6 +28,8 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
     if(ti.isFirstStepInsn()) { // re-execute after it got unblock, now do the read()
       if(isInjectedFailureChoice(env)) {
         return EOF;
+      } else if(conn.isClosed()) { // this blocking read got unblocked upon closing socket
+        return EOF;
       } else {
         return readByte(conn, socketRef);
       }
@@ -108,12 +110,15 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
    */
   protected boolean isConnBroken(MJIEnv env, int objRef, Connection conn) {
     boolean isConnBroken = false;
+    int socketRef = env.getElementInfo(objRef).getReferenceField("socket");
     
     // if this end is closed, an exception should be thrown. If the socket at the 
     // other end is closed just return EOF
     if(conn.isClosed() || conn.isTerminated()) {
       if(isThisEndClosed(env, objRef)) {
         env.throwException("java.net.SocketException", "Socket closed");
+      } else if(isBufferEmpty(conn, socketRef)) {
+        env.throwException("java.net.SocketException", "Connection reset");
       }
       isConnBroken = true;
     }
@@ -195,7 +200,7 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
     if(conn.isClientEndSocket(endpoint)) {
       return conn.getClientEndSocket();
     } else {
-      return conn.getServerPassiveSocket();
+      return conn.getServerEndSocket();
     }
   }
   

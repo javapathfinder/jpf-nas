@@ -1,6 +1,6 @@
 @using=jpf-nas
 
-target.0 = serverClient.Server
+target.0 = serverClient.MultiClientServer
 target.1 = serverClient.Client
 target.2 = serverClient.Client
 

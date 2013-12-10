@@ -1,6 +1,7 @@
 package nas;
 
 import nas.java.net.choice.Scheduler;
+import nas.java.net.connection.ConnectionManager;
 import gov.nasa.jpf.Config;
 import gov.nasa.jpf.JPF;
 import gov.nasa.jpf.vm.MultiProcessVM;
@@ -15,5 +16,6 @@ public class NasVM extends MultiProcessVM{
   protected void initSubsystems (Config config) {
     super.initSubsystems(config);
     Scheduler.init(config);
+    ConnectionManager.init(config);
   }
 }

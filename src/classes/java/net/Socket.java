@@ -31,6 +31,9 @@ public class Socket implements java.io.Closeable {
   private Thread waitingThread;
 
   public Socket() {
+    impl = new SocketImpl();
+    impl.setSocket(this);
+    impl.bind(-1);
     this.setIOStream();
   }
 
@@ -49,25 +52,51 @@ public class Socket implements java.io.Closeable {
     this.input = new SocketInputStream(this);
     this.output = new SocketOutputStream(this);
   }
-  
+
   public Socket(InetAddress address, int port) throws UnknownHostException, IOException {
     this(address.getHostName(), port);
   }
 
-  public native void connect(String host, int port) throws IOException;
-
-  // TODO: for timeout, look at wait() implementation
-  public native void connect(SocketAddress endpoint, int timeout) throws IOException;
+  private native void connect(String host, int port) throws IOException;
   
+  public void connect(SocketAddress endpoint) throws IOException {
+    connect(endpoint, 0);
+  }
+  
+  public void connect(SocketAddress endpoint, int timeout) throws IOException {
+    // TODO: for timeout, look at wait() implementation
+    String host = ((InetSocketAddress)endpoint).getHostName();
+    int port = ((InetSocketAddress)endpoint).getPort();
+    connect(host, port);
+  }
+
   void setBound() {
     bound = true;
   }
 
   public InputStream getInputStream() throws IOException {
+    if (isClosed()) {
+      throw new SocketException("Socket is closed");
+    } else if (!isConnected()) {
+      throw new SocketException("Socket is not connected");
+    }
+    
+    assert(!isClosed());
+    assert(isConnected());
+    
     return input;
   }
 
   public OutputStream getOutputStream() throws IOException {
+    if (isClosed()) {
+      throw new SocketException("Socket is closed");
+    } else if (!isConnected()) {
+      throw new SocketException("Socket is not connected");
+    }
+    
+    assert(!isClosed());
+    assert(isConnected());
+    
     return output;
   }
   
@@ -77,6 +106,11 @@ public class Socket implements java.io.Closeable {
   public boolean isClosed() {
     return this.closed;
   }
+  
+  /**
+   * Returns the connection state of the socket.
+   */
+  public native boolean isConnected();
   
   // TODO: Any thread currently blocked in an I/O operation upon this socket 
   //       will throw a SocketException.

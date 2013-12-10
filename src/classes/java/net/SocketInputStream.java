@@ -29,4 +29,15 @@ public class SocketInputStream extends InputStream {
   
   @Override
   public native int read(byte b[], int off, int len) throws IOException;
+  
+  private boolean closed = false;
+  
+  @Override
+  public void close() throws IOException {
+    if (closed) {
+      return;
+    }
+    closed = true;
+    socket.close();
+  }
 }

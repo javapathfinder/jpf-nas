@@ -31,7 +31,7 @@ public class Scheduler {
   public static boolean failure_injection;
   
   /**
-   * This is invoked by VM.initSubsystems()
+   * This is invoked by NasVM.initSubsystems()
    */
   public static void init (Config config) {
     failure_injection = config.getBoolean("scheduler.failure_injection", false);

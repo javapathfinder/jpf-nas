@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import gov.nasa.jpf.Config;
 import gov.nasa.jpf.JPF;
 import gov.nasa.jpf.ListenerAdapter;
 import gov.nasa.jpf.util.StateExtensionClient;
@@ -31,8 +32,11 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
   /*------ connections management ------*/
   
   static ConnectionManager connections;
-
-  static {
+  
+  /**
+   * This is invoked by NasVM.initSubsystems()
+   */
+  public static void init (Config config) {
     connections = new ConnectionManager();
     connections.registerListener(VM.getVM().getJPF());
   }
@@ -41,7 +45,7 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
     return connections;
   }
   
-  public Connection getServerPendingConn(int port, String serverHost) {
+  public Connection getPendingServerConn(int port, String serverHost) {
     Iterator<Connection> itr = curr.iterator();
     while(itr.hasNext()) {
       Connection conn = itr.next();
@@ -86,12 +90,12 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
     return false;
   }
   
-  public Connection getClientConn(int port, String serverHost) {
+  public Connection getPendingClientConn(int port, String serverHost) {
     Iterator<Connection> itr = curr.iterator();
     while(itr.hasNext()) {
       Connection conn = itr.next();
 
-      if(conn.hasClient()) {
+      if(conn.hasClient() && conn.isPending()) {
         if(conn.getPort()==port && conn.getServerHost().equals(serverHost)) {
           return conn;
         }
@@ -151,11 +155,10 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
     while(itr.hasNext()) {
       Connection conn = itr.next();
 
-      if(conn.isConnectionEndpoint(endpoint)) {
+      if(conn.isConnectionEndpoint(endpoint) || conn.getServerPassiveSocket()==endpoint) {
         conn.terminate();
         return;
       }
-      
       
     }
   }
@@ -195,7 +198,7 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
 
     @Override
     public void objectReleased(VM vm, ThreadInfo currentThread, ElementInfo releasedObject) {
-      if(releasedObject.instanceOf("Ljava.net.Socket;")) {
+      if(releasedObject.instanceOf("Ljava.net.Socket;") || releasedObject.instanceOf("Ljava.net.ServerSocket;")) {
         //int objRef = releasedObject.getObjectRef();
         //terminateConnection(objRef);        
       }
@@ -217,7 +220,7 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
   @Override
   public void registerListener (JPF jpf) {
     StateExtensionListener<List<Connection>> sel = new StateExtensionListener<List<Connection>>(this);
-    jpf.addSearchListener(sel);
+    jpf.addListener(sel);
     
     ConnectionTerminationListener ctl = new ConnectionTerminationListener();
     jpf.addListener(ctl);
