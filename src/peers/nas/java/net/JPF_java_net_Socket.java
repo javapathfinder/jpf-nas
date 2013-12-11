@@ -146,7 +146,7 @@ public class JPF_java_net_Socket extends NativePeer {
   protected void blockClientConnect(MJIEnv env, int socketRef, int port, String host) {
     ThreadInfo ti = env.getThreadInfo();
     
-    connections.addNewPendingClientConn(socketRef, port, host);
+    connections.addNewPendingClientConn(env, socketRef, port, host);
     
     int lock = env.getReferenceField( socketRef, "lock");
     ElementInfo ei = env.getModifiableElementInfo(lock);

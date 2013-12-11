@@ -36,7 +36,7 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
   /**
    * This is invoked by NasVM.initSubsystems()
    */
-  public static void init (Config config) {
+  public static void init () {
     connections = new ConnectionManager();
     connections.registerListener(VM.getVM().getJPF());
   }
@@ -120,18 +120,18 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
     return null;
   }
   
-  public void addNewPendingServerConn(int serverPassiveSocket, int port, String serverHost) {
+  public void addNewPendingServerConn(MJIEnv env, int serverPassiveSocket, int port, String serverHost) {
     VM vm = VM.getVM();
-    Connection conn = new Connection(port);
+    Connection conn = new Connection(env, port);
     // the server connection is pending, that is, we don't have serverEndSocket yet and 
     // for now is set to null
     conn.setServerInfo(serverPassiveSocket, MJIEnv.NULL, vm.getApplicationContext(serverPassiveSocket));
     this.curr.add(conn);
   }
 
-  public void addNewPendingClientConn(int client, int port, String serverHost) {
+  public void addNewPendingClientConn(MJIEnv env, int client, int port, String serverHost) {
     VM vm = VM.getVM();
-    Connection conn = new Connection(port);
+    Connection conn = new Connection(env, port);
     conn.setClientInfo(client, vm.getApplicationContext(client), serverHost);
     this.curr.add(conn);
   }

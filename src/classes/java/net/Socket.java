@@ -15,6 +15,13 @@ public class Socket implements java.io.Closeable {
   private SocketOutputStream output = null;
   
   /**
+   *  This is used to make JPF account for connection objects when state matching. This 
+   *  keep the hash value of this socket connection object, and it is updated upon any 
+   *  internal change to the connection
+   */
+  private int hash;
+  
+  /**
    * The implementation of this Socket.
    */
   SocketImpl impl; 

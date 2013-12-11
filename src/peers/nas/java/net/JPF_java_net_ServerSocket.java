@@ -1,5 +1,6 @@
 package nas.java.net;
 
+import gov.nasa.jpf.JPFException;
 import gov.nasa.jpf.annotation.MJI;
 import gov.nasa.jpf.vm.ApplicationContext;
 import gov.nasa.jpf.vm.ChoiceGenerator;
@@ -77,16 +78,16 @@ public class JPF_java_net_ServerSocket extends NativePeer {
       // notified | timedout | interrupted -> running
       switch (ti.getState()) {
       // Note - excluded the case for the NOTIFIED state, why?
-      case TIMEDOUT: // TODO - how to deal with timeout? Look into
-                     // "object.wait()"
-      case INTERRUPTED:
+      case TIMEDOUT:
+        int acceptedSocket = env.getElementInfo(serverSocketRef).getReferenceField("acceptedSocket");
+        env.getModifiableElementInfo(serverSocketRef).setReferenceField("waitingThread", MJIEnv.NULL);
+        env.throwException("java.net.SocketTimeoutException", "Accept timed out");
         ti.resetLockRef();
         ti.setRunning();
-        // is that right?!
-        env.getModifiableElementInfo(serverSocketRef).setReferenceField("acceptedSocket", MJIEnv.NULL);
-        break;
-      default:
-        // nothing
+        
+        // we need to terminate the connection to avoid sockets from connecting to this server
+        connections.terminateConnection(serverSocketRef);
+        return;
       }
       
       if(Scheduler.failure_injection) {
@@ -125,6 +126,10 @@ public class JPF_java_net_ServerSocket extends NativePeer {
     }
   }
 
+  protected int getTimeout(MJIEnv env, int serverSocketRef) {
+    return env.getElementInfo(serverSocketRef).getIntField("timeout");
+  }
+  
   protected boolean isClosed(MJIEnv env, int serverSocketRef) {
     return env.getElementInfo(serverSocketRef).getBooleanField("closed");
   }
@@ -166,18 +171,19 @@ public class JPF_java_net_ServerSocket extends NativePeer {
 
   protected void blockServerAccept (MJIEnv env, int serverSocketRef) {
     ThreadInfo ti = env.getThreadInfo();
+    int timeout = getTimeout(env, serverSocketRef);
 
     String serverHost = getServerHost(env, serverSocketRef);
     int port = getServerPort(env, serverSocketRef);
 
     connections = ConnectionManager.getConnections();
-    connections.addNewPendingServerConn(serverSocketRef, port, serverHost);
+    connections.addNewPendingServerConn(env, serverSocketRef, port, serverHost);
 
     int lock = env.getReferenceField(serverSocketRef, "lock");
     ElementInfo ei = env.getModifiableElementInfo(lock);
     env.getElementInfo(serverSocketRef).setReferenceField("waitingThread", ti.getThreadObjectRef());
 
-    ei.wait(ti, 0, false);
+    ei.wait(ti, timeout, false);
 
     assert ti.isWaiting();
 

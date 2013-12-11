@@ -16,6 +16,6 @@ public class NasVM extends MultiProcessVM{
   protected void initSubsystems (Config config) {
     super.initSubsystems(config);
     Scheduler.init(config);
-    ConnectionManager.init(config);
+    ConnectionManager.init();
   }
 }

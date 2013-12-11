@@ -1,11 +1,16 @@
 package nas.java.net.connection;
 
+import java.util.Iterator;
+import  gov.nasa.jpf.util.OATHash;
+
 import gov.nasa.jpf.util.ArrayByteQueue;
 import gov.nasa.jpf.vm.ApplicationContext;
 import gov.nasa.jpf.vm.MJIEnv;
 
 public class Connection  implements Cloneable {
 
+  MJIEnv env;
+  
   public enum State {
     PENDING,
     ESTABLISHED,
@@ -29,7 +34,9 @@ public class Connection  implements Cloneable {
   ArrayByteQueue server2client; // server out and client in
   ArrayByteQueue client2server; // client out and server in
   
-  public Connection(int port) {
+  public Connection(MJIEnv env, int port) {
+    this.env = env;
+    
     this.port = port;
     this.state = State.PENDING;
     
@@ -80,6 +87,8 @@ public class Connection  implements Cloneable {
 
     if(this.hasClient()) {
       this.establish();
+    } else {
+      this.updateHash();
     }
   }
   
@@ -90,6 +99,8 @@ public class Connection  implements Cloneable {
 
     if(this.hasServer()) {
       this.establish();
+    } else {
+      this.updateHash();
     }
   }
   
@@ -107,8 +118,8 @@ public class Connection  implements Cloneable {
   
   public void establishedConnWithClient(int clientEndSocket, ApplicationContext clientApp, String host, int serverEndSocket) {
     if(this.hasServer()) {
-      this.setClientInfo(clientEndSocket, clientApp, host);
       this.setServerEndSocket(serverEndSocket);
+      this.setClientInfo(clientEndSocket, clientApp, host);
     } else {
       throw new ConnectionException();
     }
@@ -147,6 +158,7 @@ public class Connection  implements Cloneable {
 
   protected void establish() {
     this.state = State.ESTABLISHED;
+    this.updateHash();
   }
 
   public boolean isEstablished() {
@@ -155,6 +167,7 @@ public class Connection  implements Cloneable {
 
   protected void close() {
     this.state = State.CLOSED;
+    this.updateHash();
   }
 
   public boolean isClosed() {
@@ -163,6 +176,7 @@ public class Connection  implements Cloneable {
   
   protected void terminate() {
     this.state = State.TERMINATED;
+    this.updateHash();
   }
 
   public boolean isTerminated() {
@@ -183,22 +197,28 @@ public class Connection  implements Cloneable {
   
   public int serverRead() {
     // server reading ...
-    return client2server.poll().byteValue();
+    int val = client2server.poll().byteValue();
+    this.updateHash();
+    return val;
   }
   
   public int clientRead() {
     // client reading ...
-    return server2client.poll().byteValue();
+    int val = server2client.poll().byteValue();
+    this.updateHash();
+    return val;
   }
   
   public void serverWrite(byte value) {
     // server writing ...
     server2client.add(value);
+    this.updateHash();
   }
   
   public void clientWrite(byte value) {
     // client writing ...
     client2server.add(value);
+    this.updateHash();
   }
   
   public boolean isServer2ClientBufferEmpty() {
@@ -215,5 +235,40 @@ public class Connection  implements Cloneable {
   
   public int client2ServerBufferSize() {
     return client2server.size();
+  }
+  
+  public int hashCode() {
+    int h = 0;
+    
+    // include server-2-client buffer
+    Iterator<Byte> itr = server2client.iterator();
+    while(itr.hasNext()) {
+      h = OATHash.hashMixin(h, itr.next());
+    }
+    
+    // include client-2-server buffer
+    itr = client2server.iterator();
+    while(itr.hasNext()) {
+      h = OATHash.hashMixin(h, itr.next());
+    }
+    
+    // include the state of the connection
+    h = OATHash.hashMixin(h, state.ordinal());
+    
+    return OATHash.hashFinalize(h);
+  }
+  
+  public void updateHash() {
+    int h = hashCode();
+    
+    // TODO - we might get rid of the second part of the if conditions once we handle
+    // processes shutdown semantics
+    if(this.clientEndSocket!=MJIEnv.NULL && env.getElementInfo(clientEndSocket)!=null) {
+      env.getModifiableElementInfo(this.clientEndSocket).setIntField("hash", h);
+    }
+    
+    if(this.serverEndSocket!=MJIEnv.NULL && env.getElementInfo(serverEndSocket)!=null) {
+      env.getModifiableElementInfo(this.serverEndSocket).setIntField("hash", h);
+    }
   }
 }

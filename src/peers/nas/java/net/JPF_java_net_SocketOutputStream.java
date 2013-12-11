@@ -106,7 +106,14 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
     ThreadInfo ti = env.getThreadInfo();
     int blockedReader = getOtherEnd(conn, endpoint);
     
-    int tiRef = env.getElementInfo(blockedReader).getReferenceField("waitingThread");
+    ElementInfo ei =  env.getElementInfo(blockedReader);
+    
+    // TODO - we will get rid of this once we handle shutdown semantics
+    if(ei==null) {
+      return;
+    }
+    
+    int tiRef = ei.getReferenceField("waitingThread");
     ThreadInfo tiRead = env.getThreadInfoForObjRef(tiRef);
     
     if (tiRead == null || tiRead.isTerminated()){
