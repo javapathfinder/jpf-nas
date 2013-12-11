@@ -183,6 +183,11 @@
     <jar jarfile="build/${ant.project.name}-classes.jar" whenmanifestonly="skip">
       <fileset dir="build/classes" erroronmissingdir="false"/>
       <fileset dir="build/annotations" erroronmissingdir="false"/>
+
+      <fileset dir="build/main">
+        <!-- these are required if we run TestNasJPF derived test classes -->
+        <include name="nas/util/test/TestNasJPF.class"/>
+      </fileset>
     </jar>
   </target>
 
