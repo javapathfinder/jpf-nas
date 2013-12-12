@@ -1,6 +1,5 @@
 package nas.java.net;
 
-import gov.nasa.jpf.JPFException;
 import gov.nasa.jpf.annotation.MJI;
 import gov.nasa.jpf.vm.ApplicationContext;
 import gov.nasa.jpf.vm.ChoiceGenerator;
@@ -12,6 +11,7 @@ import gov.nasa.jpf.vm.SystemClassLoaderInfo;
 import gov.nasa.jpf.vm.SystemState;
 import gov.nasa.jpf.vm.ThreadInfo;
 import gov.nasa.jpf.vm.VM;
+import gov.nasa.jpf.vm.ThreadInfo.State;
 import nas.java.net.choice.NasThreadChoice;
 import nas.java.net.choice.Scheduler;
 import nas.java.net.connection.ConnectionManager;
@@ -75,18 +75,12 @@ public class JPF_java_net_ServerSocket extends NativePeer {
     ThreadInfo ti = env.getThreadInfo();
 
     if (ti.isFirstStepInsn()) { // re-executed
-      // notified | timedout | interrupted -> running
+      // TODO - how about handling other states? e.g. notified | interrupted -> running
       switch (ti.getState()) {
-      // Note - excluded the case for the NOTIFIED state, why?
+      
       case TIMEDOUT:
-        int acceptedSocket = env.getElementInfo(serverSocketRef).getReferenceField("acceptedSocket");
-        env.getModifiableElementInfo(serverSocketRef).setReferenceField("waitingThread", MJIEnv.NULL);
-        env.throwException("java.net.SocketTimeoutException", "Accept timed out");
-        ti.resetLockRef();
-        ti.setRunning();
-        
-        // we need to terminate the connection to avoid sockets from connecting to this server
-        connections.terminateConnection(serverSocketRef);
+        handleTimedoutAccept(env, ti, serverSocketRef);
+        assert ti.isRunnable();
         return;
       }
       
@@ -132,6 +126,23 @@ public class JPF_java_net_ServerSocket extends NativePeer {
   
   protected boolean isClosed(MJIEnv env, int serverSocketRef) {
     return env.getElementInfo(serverSocketRef).getBooleanField("closed");
+  }
+
+  protected void handleTimedoutAccept(MJIEnv env, ThreadInfo ti, int serverSocketRef) {
+    assert ti.getState() == State.TIMEDOUT;
+    
+    // release the monitor & reset the thread state to running
+    env.getModifiableElementInfo(serverSocketRef).setReferenceField("waitingThread", MJIEnv.NULL);
+    ti.resetLockRef();
+    ti.setRunning();
+    
+    // make JPF to throw SocketTimeoutException, that indicates required time has elapsed
+    env.throwException("java.net.SocketTimeoutException", "Accept timed out");
+    
+    // we need to terminate the connection to avoid sockets from connecting to this server
+    connections.terminateConnection(serverSocketRef);
+    
+    return;
   }
   
   protected void unblockClientConnect (MJIEnv env, int serverSocketRef, Connection conn) {

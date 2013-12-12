@@ -5,6 +5,7 @@ import gov.nasa.jpf.vm.ChoiceGenerator;
 import gov.nasa.jpf.vm.ElementInfo;
 import gov.nasa.jpf.vm.MJIEnv;
 import gov.nasa.jpf.vm.ThreadInfo;
+import gov.nasa.jpf.vm.ThreadInfo.State;
 import nas.java.net.choice.NasThreadChoice;
 import nas.java.net.choice.Scheduler;
 import gov.nasa.jpf.vm.NativePeer;
@@ -25,8 +26,13 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
     int socketRef = env.getElementInfo(objRef).getReferenceField("socket");
     Connection conn = connections.getConnection(socketRef);
     
-    if(ti.isFirstStepInsn()) { // re-execute after it got unblock, now do the read()
-      if(isInjectedFailureChoice(env)) {
+    if(ti.isFirstStepInsn()) { // re-execute after it got unblock, now attempt to read
+      
+      if(ti.getState() == State.TIMEDOUT) { // handle timedout read
+        this.handleTimedoutRead(env, ti, socketRef);
+        assert ti.isRunnable();
+        return EOF;
+      } else if(isInjectedFailureChoice(env)) {
         return EOF;
       } else if(conn.isClosed()) { // this blocking read got unblocked upon closing socket
         return EOF;
@@ -62,8 +68,15 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
     int socketRef = env.getElementInfo(objRef).getReferenceField("socket");
     Connection conn = connections.getConnection(socketRef);
     
-    if(ti.isFirstStepInsn()) { // re-execute after it got unblock, now do the read()      
-      if(isInjectedFailureChoice(env)) {
+    if(ti.isFirstStepInsn()) { // re-execute after it got unblock, now attempt to read
+      
+      if(ti.getState() == State.TIMEDOUT) { // handle timedout read
+        this.handleTimedoutRead(env, ti, socketRef);
+        assert ti.isRunnable();
+        return EOF;
+      } else if(isInjectedFailureChoice(env)) {
+        return EOF;
+      } else if(conn.isClosed()) { // this blocking read got unblocked upon closing socket
         return EOF;
       } else {      
         return readByteArray(env, bufferRef, conn, socketRef, off, len);
@@ -81,6 +94,20 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
         return readByteArray(env, bufferRef, conn, socketRef, off, len);
       }
     }
+  }
+  
+  protected void handleTimedoutRead(MJIEnv env, ThreadInfo ti, int socketRef) {
+    assert ti.getState() == State.TIMEDOUT;
+    
+    // release the monitor & reset the thread state to running
+    env.getModifiableElementInfo(socketRef).setReferenceField("waitingThread", MJIEnv.NULL);
+    ti.resetLockRef();
+    ti.setRunning();
+      
+    // make JPF to throw SocketTimeoutException, that indicates required time has elapsed
+    env.throwException("java.net.SocketTimeoutException", "Read timed out");
+    
+    return;
   }
   
   protected boolean isInjectedFailureChoice(MJIEnv env) {
@@ -144,9 +171,14 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
     }
   }
   
+  protected int getTimeout(MJIEnv env, int socketRef) {
+    return env.getElementInfo(socketRef).getIntField("timeout");
+  }
+  
   // makes the current thread get block on an empty buffer
   protected void blockRead(MJIEnv env, int streamRef, Connection conn, int endpoint) {
     ThreadInfo ti = env.getThreadInfo();
+    int timeout = getTimeout(env, endpoint);
     
     int reader = getAccessor(conn, endpoint);
     int lock = env.getElementInfo(reader).getReferenceField("lock");
@@ -154,7 +186,7 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
     ElementInfo ei = env.getModifiableElementInfo(lock);
     env.getModifiableElementInfo(reader).setReferenceField("waitingThread", ti.getThreadObjectRef());
     
-    ei.wait(ti, 0, false);
+    ei.wait(ti, timeout, false);
     
     assert ti.isWaiting();
     
