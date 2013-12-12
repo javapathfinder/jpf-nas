@@ -1,6 +1,7 @@
 package net.nas;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.net.ServerSocket;
@@ -57,7 +58,7 @@ public class SocketTest extends TestNasJPF {
    * Blocking accept with timeout throws SocketTimeoutException
    */
   @Test
-  public void testTimeoutAccept() throws IOException {
+  public void testTimedoutAccept() throws IOException {
     if (mpVerifyUnhandledException(1, "java.net.SocketTimeoutException", args)) {
 
       ServerSocket serverSocket = new ServerSocket(port);
@@ -100,6 +101,42 @@ public class SocketTest extends TestNasJPF {
         } catch(IOException e) {
           // gets here if there was no server accepting the connection request
         }
+        break;
+      }
+    }
+  }
+  
+  @Test
+  public void testTimedoutRead() throws IOException {
+    if (mpVerifyPropertyViolation(2, new TypeRef("gov.nasa.jpf.vm.NotDeadlockedProperty"), args)) {
+      
+      switch(getProcessId()) {
+      case 0:
+        ServerSocket serverSocket = new ServerSocket(port);
+        Socket sock1 = serverSocket.accept();
+        assertTrue(sock1.isConnected());
+        break;
+        
+      case 1:
+        Socket sock2 = null;
+        try {
+          sock2 = new Socket(HOST, port);
+          sock2.setSoTimeout(10);
+          assertTrue(sock2.isConnected());
+        } catch(IOException e) {
+          // gets here if there was no server accepting the connection request
+          return;
+        }
+        
+        try {
+          InputStream in = sock2.getInputStream();
+          in.read();
+          fail("There is no write from server, therefore read() had to timeout and throw SocketTimeoutException.");
+        } catch(SocketTimeoutException e) {
+          return;
+        }
+        
+        fail("this must have already returned in one of the catch blocks!");
         break;
       }
     }
