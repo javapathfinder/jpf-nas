@@ -38,8 +38,10 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
         return;
       }
       
+      int reader = getOtherEnd(conn, socketRef);
+      
       // if it is empty, then there might be a read() waiting for someone to write 
-      if(JPF_java_net_SocketInputStream.isBufferEmpty(conn, socketRef)) {
+      if(JPF_java_net_SocketInputStream.isReadBufferEmpty(conn, reader)) {
         unblockRead(env, conn, socketRef);
       }
       
@@ -70,8 +72,10 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
         return;
       }
       
-      // if it is empty, then there might be a read() waiting for someone to write 
-      if(JPF_java_net_SocketInputStream.isBufferEmpty(conn, socketRef)) {
+      int reader = getOtherEnd(conn, socketRef);
+      
+      // if it is empty, then there might be a read() waiting for someone to write
+      if(JPF_java_net_SocketInputStream.isReadBufferEmpty(conn, reader)) {
         unblockRead(env, conn, socketRef);
       }
       

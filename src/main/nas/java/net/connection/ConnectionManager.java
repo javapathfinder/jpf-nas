@@ -50,7 +50,7 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
     while(itr.hasNext()) {
       Connection conn = itr.next();
 
-      if(conn.hasServer() && conn.isPending()) {
+      if(conn.hasPassiveServer() && conn.isPending()) {
         if(conn.getPort()==port && conn.getServerHost().equals(serverHost)) {
           return conn;
         }
@@ -65,7 +65,7 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
     while(itr.hasNext()) {
       Connection conn = itr.next();
 
-      if(conn.hasServer()) {
+      if(conn.hasPassiveServer()) {
         if(conn.getPort()==port && conn.getServerHost().equals(serverHost)) {
           return conn;
         }
@@ -80,7 +80,7 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
     while(itr.hasNext()) {
       Connection conn = itr.next();
 
-      if(conn.hasServer()) {
+      if(conn.hasPassiveServer()) {
         if(conn.getPort()==port && conn.getServerHost().equals(serverHost)) {
           return true;
         }
@@ -127,6 +127,7 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
     // for now is set to null
     conn.setServerInfo(serverPassiveSocket, MJIEnv.NULL, vm.getApplicationContext(serverPassiveSocket));
     this.curr.add(conn);
+    conn.setPending();
   }
 
   public void addNewPendingClientConn(MJIEnv env, int client, int port, String serverHost) {
@@ -134,6 +135,7 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
     Connection conn = new Connection(env, port);
     conn.setClientInfo(client, vm.getApplicationContext(client), serverHost);
     this.curr.add(conn);
+    conn.setPending();
   }
 
   public void closeConnection(int endpoint) {

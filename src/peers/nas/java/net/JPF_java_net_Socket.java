@@ -232,6 +232,12 @@ public class JPF_java_net_Socket extends NativePeer {
       blockedReader = conn.getClientEndSocket();
     }
     
+    // TODO - we don't need this check once we address shutdown semantics
+    // check if the reader has been already garbage collected
+    if(env.getElementInfo(blockedReader)==null) {
+      return;
+    }
+        
     int tiRef = env.getElementInfo(blockedReader).getReferenceField("waitingThread");
     ThreadInfo tiRead = env.getThreadInfoForObjRef(tiRef);
     // is the socket thread blocked?

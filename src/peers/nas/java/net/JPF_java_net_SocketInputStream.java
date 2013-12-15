@@ -44,7 +44,7 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
         return EOF;
       }
       
-      if(isBufferEmpty(conn, socketRef)) {
+      if(isReadBufferEmpty(conn, socketRef)) {
         blockRead(env, objRef, conn, socketRef);
         env.repeatInvocation(); // re-execute needed once server gets interrupted
         return -1;
@@ -86,7 +86,7 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
         return EOF;
       }
       
-      if(isBufferEmpty(conn, socketRef)) {
+      if(isReadBufferEmpty(conn, socketRef)) {
         blockRead(env, objRef, conn, socketRef);
         env.repeatInvocation(); // re-execute is needed once server gets interrupted
         return -1;
@@ -144,7 +144,7 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
     if(conn.isClosed() || conn.isTerminated()) {
       if(isThisEndClosed(env, objRef)) {
         env.throwException("java.net.SocketException", "Socket closed");
-      } else if(isBufferEmpty(conn, socketRef)) {
+      } else if(isReadBufferEmpty(conn, socketRef)) {
         env.throwException("java.net.SocketException", "Connection reset");
       }
       isConnBroken = true;
@@ -163,7 +163,7 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
   public int available____I (MJIEnv env, int streamRef) {
     int socketRef = env.getElementInfo(streamRef).getReferenceField("socket");
     Connection conn = connections.getConnection(socketRef);
-    
+
     if(conn.isClientEndSocket(socketRef)) {
       return conn.server2ClientBufferSize();
     } else {
@@ -197,7 +197,7 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
   }
   
   // reads a single byte and returns its value
-  protected int readByte(Connection conn, int endpoint) {
+  protected byte readByte(Connection conn, int endpoint) {
     if(conn.isClientEndSocket(endpoint)) {
       return conn.clientRead();
     } else {
@@ -211,16 +211,28 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
     int n=0;
     int i = off;
     
-    while(!isBufferEmpty(conn, endpoint) && n<len) {
-      int value = readByte(conn, endpoint);
-      env.getModifiableElementInfo(desArrRef).setByteElement(i++, (byte)value);
+    while(!isReadBufferEmpty(conn, endpoint) && n<len) {
+      byte b = readByte(conn, endpoint);
+      env.getModifiableElementInfo(desArrRef).setByteElement(i++, b);
       n++;
+//      if(isEndOfStream(b)) {
+//        if(n==1) {
+//          return -1;
+//        } else {
+//          return n;
+//        }
+//    }
     }
     
     return n;
   }
   
-  protected static boolean isBufferEmpty(Connection conn, int endpoint) {  
+  protected boolean isEndOfStream(byte b) {
+    char c = (char)b;
+    return ((c == '\n') || (c == '\r'));
+  }
+  
+  protected static boolean isReadBufferEmpty(Connection conn, int endpoint) {
     if(conn.isClientEndSocket(endpoint)) {
       return conn.isServer2ClientBufferEmpty();
     } else {

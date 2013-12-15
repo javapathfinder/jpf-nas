@@ -97,7 +97,7 @@ public class Connection  implements Cloneable {
     this.clientApp = clientApp;
     this.serverHost = serverHost;
 
-    if(this.hasServer()) {
+    if(this.hasPassiveServer()) {
       this.establish();
     } else {
       this.updateHash();
@@ -117,7 +117,7 @@ public class Connection  implements Cloneable {
   }
   
   public void establishedConnWithClient(int clientEndSocket, ApplicationContext clientApp, String host, int serverEndSocket) {
-    if(this.hasServer()) {
+    if(this.hasPassiveServer()) {
       this.setServerEndSocket(serverEndSocket);
       this.setClientInfo(clientEndSocket, clientApp, host);
     } else {
@@ -133,10 +133,14 @@ public class Connection  implements Cloneable {
     return this.clientApp.getHost();
   }
 
-  public boolean hasServer() {
+  public boolean hasPassiveServer() {
     return (this.serverPassiveSocket!=MJIEnv.NULL);
   }
 
+  public boolean hasActiveServer() {
+    return (this.serverEndSocket!=MJIEnv.NULL);
+  }
+  
   public boolean hasClient() {
     return (this.clientEndSocket!=MJIEnv.NULL);
   }
@@ -183,8 +187,13 @@ public class Connection  implements Cloneable {
     return(this.state==State.TERMINATED);
   }
   
+  public void setPending() {
+    this.state = State.PENDING;
+    this.updateHash();
+  }
+  
   public boolean isPending() {
-    return(!isTerminated() && !(this.hasServer() && this.hasClient()));
+    return(this.state==State.PENDING);
   }
   
   public String toString() {
@@ -195,16 +204,16 @@ public class Connection  implements Cloneable {
     return result;
   }
   
-  public int serverRead() {
+  public byte serverRead() {
     // server reading ...
-    int val = client2server.poll().byteValue();
+    byte val = client2server.poll().byteValue();
     this.updateHash();
     return val;
   }
   
-  public int clientRead() {
+  public byte clientRead() {
     // client reading ...
-    int val = server2client.poll().byteValue();
+    byte val = server2client.poll().byteValue();
     this.updateHash();
     return val;
   }
