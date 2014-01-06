@@ -42,8 +42,11 @@ public class Scheduler {
   }
   
   protected static ThreadInfo[] getRunnables(ThreadInfo ti) {
-    ThreadList tl = VM.getVM().getThreadList();
-    return tl.getRunnableThreads();
+    //ThreadList tl = VM.getVM().getThreadList();
+    //return tl.getRunnableThreads();
+    VM vm = VM.getVM();
+    ThreadInfo[] runnables = vm.getThreadList().getAllMatching(vm.getTimedoutRunnablePredicate());
+    return runnables;
   }
 
   /**
