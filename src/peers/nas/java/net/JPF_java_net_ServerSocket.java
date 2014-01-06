@@ -95,28 +95,15 @@ public class JPF_java_net_ServerSocket extends NativePeer {
           }
         }
       }
-    } else {
-      String serverHost = getServerHost(env, serverSocketRef);
-      int port = getServerPort(env, serverSocketRef);
-      Connection conn = connections.getPendingClientConn(port, serverHost);
-      
+    } else {           
       if(isClosed(env, serverSocketRef)) {
         env.throwException("java.net.SocketException", "Socket is closed");
         return;
       }
       
-      // In this case, there a client that is waiting to connect to this server,
-      // then let's establish the connection and unblock the waiting client
-      // thread
-      if (conn != null && conn.isPending()) {
-        unblockClientConnect(env, serverSocketRef, conn);
-      }
-      // there is no client waiting to connect to this server, therefore let's
       // create a new server connection and blocks it until it receives a connection
       // request from a client
-      else {
-        blockServerAccept(env, serverSocketRef);
-      }
+      blockServerAccept(env, serverSocketRef);
     }
   }
 
@@ -143,41 +130,6 @@ public class JPF_java_net_ServerSocket extends NativePeer {
     connections.terminateConnection(serverSocketRef);
     
     return;
-  }
-  
-  protected void unblockClientConnect (MJIEnv env, int serverSocketRef, Connection conn) {
-    ThreadInfo ti = env.getThreadInfo();
-
-    int clientRef = conn.getClientEndSocket();
-
-    int tiRef = env.getElementInfo(clientRef).getReferenceField("waitingThread");
-    ThreadInfo tiConnect = env.getThreadInfoForObjRef(tiRef);
-    if (tiConnect == null || tiConnect.isTerminated()) { return; }
-
-    SystemState ss = env.getSystemState();
-    int lockRef = env.getReferenceField(clientRef, "lock");
-    ElementInfo lock = env.getModifiableElementInfo(lockRef);
-
-    if (tiConnect.getLockObject() == lock) {
-      VM vm = VM.getVM();
-
-      int acceptedSocket = env.getElementInfo(serverSocketRef).getReferenceField("acceptedSocket");
-
-      env.getModifiableElementInfo(serverSocketRef).setReferenceField("waitingThread", MJIEnv.NULL);
-
-      lock.notifies(ss, ti, false);
-
-      // connection is established with a client, then just set the server info
-      conn.establishedConnWithServer(serverSocketRef, acceptedSocket, vm.getApplicationContext(serverSocketRef));
-
-      String[] exceptions = getInjectedExceptions(env, serverSocketRef); 
-      
-      ChoiceGenerator<?> cg = Scheduler.createAcceptCG(ti, exceptions);
-      if (cg != null) {
-        ss.setNextChoiceGenerator(cg);
-        env.repeatInvocation();
-      }
-    }
   }
 
   protected void blockServerAccept (MJIEnv env, int serverSocketRef) {

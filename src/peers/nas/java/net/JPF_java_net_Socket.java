@@ -82,26 +82,19 @@ public class JPF_java_net_Socket extends NativePeer {
 
       Connection conn = connections.getPendingServerConn(port, host);
 
-      // there is no server accept associated with this address
-      if(conn==null && !connections.hasServerConn(port, host)) {
+      // there is no pending server accept associated with this address
+      if(conn==null) {
         env.throwException("java.io.IOException");
         return;
       }
       
-      assert(!closed);
-      assert(!conn.isEstablished());
+      assert(conn.isPending());
       
-      // there is a server accept which is pending (i.e., waiting for the client request).
-      // In this case, we connect this client to the pending server and unblock the server
-      if(conn!=null && conn.isPending()){
-        unblockServerAccept(env, socketRef, conn);
-        assert(conn.isEstablished());
-      }
-      // there is a server accept but it is connected to some other client. In this case
-      // the client blocks until it gets picked up by another server accept.
-      else {
-        blockClientConnect(env, socketRef, port, host);
-      }
+      // there is a server accept which is pending (i.e., waiting for a client request).
+      // we connect this client to the pending server and unblock the server
+      unblockServerAccept(env, socketRef, conn);
+      
+      assert(conn.isEstablished());
     }
   }
   
@@ -143,25 +136,6 @@ public class JPF_java_net_Socket extends NativePeer {
     }
   }
   
-  protected void blockClientConnect(MJIEnv env, int socketRef, int port, String host) {
-    ThreadInfo ti = env.getThreadInfo();
-    
-    connections.addNewPendingClientConn(env, socketRef, port, host);
-    
-    int lock = env.getReferenceField( socketRef, "lock");
-    ElementInfo ei = env.getModifiableElementInfo(lock);
-    
-    env.getElementInfo(socketRef).setReferenceField("waitingThread", ti.getThreadObjectRef());
-    
-    ei.wait(ti, 0, false);
-
-    assert ti.isWaiting();
-
-    ChoiceGenerator<?> cg = Scheduler.createBlockingConnectCG(ti, null);
-    env.setMandatoryNextChoiceGenerator(cg, "no CG on blocking Socket.connect()");
-    env.repeatInvocation();
-  }
-  
   @MJI
   public void close____V (MJIEnv env, int socketRef) {
     ThreadInfo ti = env.getThreadInfo();
@@ -169,6 +143,8 @@ public class JPF_java_net_Socket extends NativePeer {
     boolean closed = env.getElementInfo(socketRef).getBooleanField("closed");
     
     if(ti.isFirstStepInsn()) { // re-execute
+      
+      // it shoudln't be closed yet
       assert !closed;
       
       if(Scheduler.failure_injection) {
@@ -188,8 +164,8 @@ public class JPF_java_net_Socket extends NativePeer {
       // unblock blocking-read if there is any
       unblockRead(env, socketRef);
       
-      // changes the close status of the socket
-      env.getModifiableElementInfo(socketRef).setBooleanField("closed", true);
+      // set the close status of the socket to true
+      setCloseStatus(env,socketRef);
       
       // closes the socket connection - Note: closing this socket will also 
       // close its InputStream and OutputStream
@@ -198,6 +174,14 @@ public class JPF_java_net_Socket extends NativePeer {
       
       return;
     } else { // first time
+
+      // check if there was any established connection, OW, just return
+      Connection conn = connections.getConnection(socketRef);
+      if(conn == null) {
+        setCloseStatus(env,socketRef);
+        return;
+      }
+      
       // before closing the socket, creates a choice generator and re-execute the
       // invocation of close()
       if(!closed) {
@@ -208,6 +192,10 @@ public class JPF_java_net_Socket extends NativePeer {
         return;
       }
     }
+  }
+  
+  void setCloseStatus(MJIEnv env, int socketRef) {
+    env.getModifiableElementInfo(socketRef).setBooleanField("closed", true);
   }
   
   /**
@@ -240,6 +228,7 @@ public class JPF_java_net_Socket extends NativePeer {
         
     int tiRef = env.getElementInfo(blockedReader).getReferenceField("waitingThread");
     ThreadInfo tiRead = env.getThreadInfoForObjRef(tiRef);
+    
     // is the socket thread blocked?
     if (tiRead == null || tiRead.isTerminated()){
       return;
@@ -257,11 +246,14 @@ public class JPF_java_net_Socket extends NativePeer {
     }
   }
   
+  // Note: Closing a socket doesn't clear its binding state, which means this method 
+  // will return true for a closed socket (see isClosed()) if it was successfuly bound 
+  // prior to being closed. true if the socket was successfuly bound to an address.
   @MJI
   public boolean isConnected____Z (MJIEnv env, int socketRef) {
     Connection conn = connections.getConnection(socketRef);
     
-    return conn!=null && conn.isEstablished();
+    return conn!=null && !conn.isPending();
   }
   
   protected String[] getInjectedExceptions() {
