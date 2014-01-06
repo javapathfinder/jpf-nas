@@ -129,4 +129,9 @@ public class Socket implements java.io.Closeable {
   public void setSoTimeout(int timeout) {
     this.timeout = timeout;
   }
+  
+  @Override
+  protected void finalize() throws Throwable{
+    close();
+  }
 }
