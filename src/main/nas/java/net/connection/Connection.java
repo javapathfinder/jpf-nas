@@ -14,8 +14,7 @@ public class Connection  implements Cloneable {
   public enum State {
     PENDING,
     ESTABLISHED,
-    CLOSED,
-    TERMINATED
+    CLOSED
   };
 
   String serverHost;
@@ -176,15 +175,6 @@ public class Connection  implements Cloneable {
 
   public boolean isClosed() {
     return(this.state==State.CLOSED);
-  }
-  
-  protected void terminate() {
-    this.state = State.TERMINATED;
-    this.updateHash();
-  }
-
-  public boolean isTerminated() {
-    return(this.state==State.TERMINATED);
   }
   
   public void setPending() {

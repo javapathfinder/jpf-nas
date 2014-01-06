@@ -158,7 +158,7 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
       Connection conn = itr.next();
 
       if(conn.isConnectionEndpoint(endpoint) || conn.getServerPassiveSocket()==endpoint) {
-        conn.terminate();
+        curr.remove(conn);
         return;
       }
       
@@ -226,5 +226,16 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
     
     ConnectionTerminationListener ctl = new ConnectionTerminationListener();
     jpf.addListener(ctl);
+  }
+  
+  /*---------------------------------------*/
+  
+  public String toString() {
+    String result = null;
+    for(Connection conn: curr) {
+      result += conn + "\n";
+    }
+    
+    return result;
   }
 }

@@ -91,7 +91,8 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
   protected boolean isConnBroken(MJIEnv env, int objRef, Connection conn) {
     boolean isConnBroken = false;
     
-    if(conn.isClosed() || conn.isTerminated()) {
+    if(conn.isClosed()) {
+      System.out.println("broken conn: " + conn);
       String msg;
       if(JPF_java_net_SocketInputStream.isThisEndClosed(env, objRef)) {
         msg = "Socket closed";

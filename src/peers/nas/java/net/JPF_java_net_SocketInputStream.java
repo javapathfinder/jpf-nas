@@ -141,7 +141,7 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
     
     // if this end is closed, an exception should be thrown. If the socket at the 
     // other end is closed just return EOF
-    if(conn.isClosed() || conn.isTerminated()) {
+    if(conn.isClosed()) {
       if(isThisEndClosed(env, objRef)) {
         env.throwException("java.net.SocketException", "Socket closed");
       } else if(isReadBufferEmpty(conn, socketRef)) {
@@ -215,13 +215,6 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
       byte b = readByte(conn, endpoint);
       env.getModifiableElementInfo(desArrRef).setByteElement(i++, b);
       n++;
-//      if(isEndOfStream(b)) {
-//        if(n==1) {
-//          return -1;
-//        } else {
-//          return n;
-//        }
-//    }
     }
     
     return n;
