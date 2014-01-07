@@ -10,12 +10,12 @@ import gov.nasa.jpf.vm.ThreadInfo;
 import gov.nasa.jpf.vm.choice.MultiProcessThreadChoice;
 
 public class NasVM extends MultiProcessVM{
-  boolean startWithTarget0;
+  int initiatingTarget;
   
   public NasVM (JPF jpf, Config conf) {
     super(jpf, conf);
     
-    startWithTarget0 = config.getBoolean("vm.nas.start_with_target0", false);
+    initiatingTarget = config.getInt("vm.nas.initiating_target", -1);
   }
 
   @Override
@@ -27,11 +27,11 @@ public class NasVM extends MultiProcessVM{
   
   @Override
   protected ChoiceGenerator<?> getInitialCG () {
-    if(!startWithTarget0) {
-      return super.getInitialCG();
+    if(initiatingTarget >= 0) {
+      ThreadInfo[] runnables =  getThreadList().getAllMatching(vm.getTimedoutRunnablePredicate());
+      return new MultiProcessThreadChoice("<root>", new ThreadInfo[]{runnables[initiatingTarget]}, true);
     } else {
-      ThreadInfo[] runnables = {getThreadList().getAllMatching(vm.getTimedoutRunnablePredicate())[0]};
-      return new MultiProcessThreadChoice("<root>", runnables, true);
+      return super.getInitialCG();
     }
   }
 }

@@ -18,7 +18,8 @@ import gov.nasa.jpf.util.test.TestMultiProcessJPF;
 
 public class SocketTest extends TestNasJPF {
   String[] args = { "+search.multiple_errors = true",
-                    "+vm.process_finalizers = true"
+                    "+vm.process_finalizers = true",
+                    "+vm.nas.initiating_target = 0"
                   };
   
   int port = 1024;
@@ -75,7 +76,7 @@ public class SocketTest extends TestNasJPF {
   
   @Test
   public void testHash() throws Exception {
-    if (mpVerifyPropertyViolation(2, new TypeRef("gov.nasa.jpf.vm.NotDeadlockedProperty"), args)) {
+    if (mpVerifyNoPropertyViolation(2, args)) {
      
       switch(getProcessId()) {
       case 0:
@@ -113,7 +114,7 @@ public class SocketTest extends TestNasJPF {
   
   @Test
   public void testTimedoutRead() throws IOException {
-    if (mpVerifyPropertyViolation(2, new TypeRef("gov.nasa.jpf.vm.NotDeadlockedProperty"), args)) {
+    if (mpVerifyNoPropertyViolation(2, args)) {
       
       switch(getProcessId()) {
       case 0:
