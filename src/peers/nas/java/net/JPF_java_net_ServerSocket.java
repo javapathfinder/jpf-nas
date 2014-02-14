@@ -1,5 +1,8 @@
 package nas.java.net;
 
+import java.util.List;
+
+import gov.nasa.jpf.JPFException;
 import gov.nasa.jpf.annotation.MJI;
 import gov.nasa.jpf.vm.ApplicationContext;
 import gov.nasa.jpf.vm.ChoiceGenerator;
@@ -33,30 +36,6 @@ public class JPF_java_net_ServerSocket extends NativePeer {
     }
   }
 
-  @MJI
-  public int addToWaitingSockets__Ljava_net_ServerSocket_2___3Ljava_net_ServerSocket_2 (MJIEnv env, int serverSocketRef, int socket) {
-    ClassInfo ci = SystemClassLoaderInfo.getSystemResolvedClassInfo("java.net.ServerSocket");
-    ElementInfo ei = ci.getStaticElementInfo();
-
-    int arrRef = ei.getReferenceField("waitingSockets");
-
-    int[] waitingSockets = env.getReferenceArrayObject(arrRef);
-
-    // check if it is already among the waiting sockets
-    for (int i = 0; i < waitingSockets.length; i++) {
-      if (waitingSockets[i] == socket) { return arrRef; }
-    }
-
-    int newArrRef = env.newObjectArray("java.net.ServerSocket", waitingSockets.length + 1);
-
-    for (int i = 0; i < waitingSockets.length; i++) {
-      env.getModifiableElementInfo(newArrRef).setReferenceElement(i, waitingSockets[i]);
-    }
-    env.getModifiableElementInfo(newArrRef).setReferenceElement(waitingSockets.length, serverSocketRef);
-
-    return newArrRef;
-  }
-
   public String getServerHost (MJIEnv env, int serverSocketRef) {
     VM vm = VM.getVM();
     ApplicationContext appContext = vm.getApplicationContext(serverSocketRef);
@@ -71,42 +50,94 @@ public class JPF_java_net_ServerSocket extends NativePeer {
   }
 
   @MJI
-  public void accept0____V (MJIEnv env, int serverSocketRef) {
+  public int accept0____Ljava_net_Socket_2 (MJIEnv env, int serverSocketRef) {
     ThreadInfo ti = env.getThreadInfo();
 
     if (ti.isFirstStepInsn()) { // re-executed
+      
+      if(handleInjectedExceptionCg(env)) {
+        return MJIEnv.NULL;
+      }
+      
+      int acceptedSocket = resetAndGetAcceptedSocket(env, serverSocketRef);
+      
       // TODO - how about handling other states? e.g. notified | interrupted -> running
       switch (ti.getState()) {
       
       case TIMEDOUT:
         handleTimedoutAccept(env, ti, serverSocketRef);
         assert ti.isRunnable();
-        return;
+        return MJIEnv.NULL;
+        
+      case RUNNING:
+      case UNBLOCKED:
+        return acceptedSocket;
+        
+      default:
+        throw new JPFException("The state of the thread cannot be recognized in the re-execute of ServerSocker.accept()");
       }
       
-      if(Scheduler.failure_injection) {
-        ChoiceGenerator<?> cg = env.getChoiceGenerator(); 
-        
-        if(cg!=null && (cg instanceof NasThreadChoice)) {
-          NasThreadChoice ncg = (NasThreadChoice)cg;
-          if(ncg.isExceptionChoice()) {
-            String e = ncg.getExceptionForCurrentChoice();
-            ti.createAndThrowException(e, "Injected at ServerSocket.accept()");
-          }
-        }
-      }
-    } else {           
+    } else {
       if(isClosed(env, serverSocketRef)) {
         env.throwException("java.net.SocketException", "Socket is closed");
-        return;
+        resetAndGetAcceptedSocket(env, serverSocketRef);
+      }
+       // Check if the server could connect to any pending client
+      else if(connectToPendingClient(env, serverSocketRef)) {
+        env.repeatInvocation();
+      } else {
+        // create a new server connection and blocks it until it receives a connection
+        // request from a client
+        blockServerAccept(env, serverSocketRef);
       }
       
-      // create a new server connection and blocks it until it receives a connection
-      // request from a client
-      blockServerAccept(env, serverSocketRef);
+      return MJIEnv.NULL;
     }
   }
 
+  protected boolean handleInjectedExceptionCg(MJIEnv env) {
+    ThreadInfo ti = env.getThreadInfo();
+    
+    if(Scheduler.failure_injection) {
+      ChoiceGenerator<?> cg = env.getChoiceGenerator(); 
+      
+      if(cg!=null && (cg instanceof NasThreadChoice)) {
+        NasThreadChoice ncg = (NasThreadChoice)cg;
+        if(ncg.isExceptionChoice()) {
+          String e = ncg.getExceptionForCurrentChoice();
+          ti.createAndThrowException(e, "Injected at ServerSocket.accept()");
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+  
+  public boolean connectToPendingClient(MJIEnv env, int serverSocketRef) {
+    String serverHost = getServerHost(env, serverSocketRef);
+    int port = getServerPort(env, serverSocketRef);
+    
+    List<Connection> conns = connections.getAllPendingClientConn(port, serverHost);
+    
+    for(Connection conn: conns) {
+      unblockClientConnect(env, serverSocketRef, conn);
+      if(conn.isEstablished()) {
+        return true;
+      } else {
+        connections.terminateConnection(conn);
+      }
+    }
+    
+    return false;
+  }
+  
+  
+  protected int resetAndGetAcceptedSocket(MJIEnv env, int serverSocketRef) {
+    int acceptedSocketCache = env.getElementInfo(serverSocketRef).getReferenceField("acceptedSocket");
+    env.getModifiableElementInfo(serverSocketRef).setReferenceField("acceptedSocket", MJIEnv.NULL);
+    return acceptedSocketCache;
+  }
+  
   protected int getTimeout(MJIEnv env, int serverSocketRef) {
     return env.getElementInfo(serverSocketRef).getIntField("timeout");
   }
@@ -126,8 +157,12 @@ public class JPF_java_net_ServerSocket extends NativePeer {
     // make JPF to throw SocketTimeoutException, that indicates required time has elapsed
     env.throwException("java.net.SocketTimeoutException", "Accept timed out");
     
+    String serverHost = getServerHost(env, serverSocketRef);
+    int port = getServerPort(env, serverSocketRef);
+    Connection conn =  connections.getPendingServerConn(port, serverHost);
+    
     // we need to terminate the connection to avoid sockets from connecting to this server
-    connections.terminateConnection(serverSocketRef);
+    connections.terminateConnection(conn);
     
     return;
   }
@@ -144,7 +179,7 @@ public class JPF_java_net_ServerSocket extends NativePeer {
 
     int lock = env.getReferenceField(serverSocketRef, "lock");
     ElementInfo ei = env.getModifiableElementInfo(lock);
-    env.getElementInfo(serverSocketRef).setReferenceField("waitingThread", ti.getThreadObjectRef());
+    env.getModifiableElementInfo(serverSocketRef).setReferenceField("waitingThread", ti.getThreadObjectRef());
 
     ei.wait(ti, timeout, false);
 
@@ -158,9 +193,56 @@ public class JPF_java_net_ServerSocket extends NativePeer {
                             // how get interrupted
   }
 
+  protected void unblockClientConnect (MJIEnv env, int serverSocketRef, Connection conn) {
+    ThreadInfo ti = env.getThreadInfo();
+
+    int clientRef = conn.getClientEndSocket();
+
+    int tiRef = env.getElementInfo(clientRef).getReferenceField("waitingThread");
+    ThreadInfo tiConnect = env.getThreadInfoForObjRef(tiRef);
+    
+    // TODO - handle this case in accept0()
+    if (tiConnect == null || tiConnect.isTerminated()) {
+      return; 
+    }
+
+    SystemState ss = env.getSystemState();
+    int lockRef = env.getReferenceField(clientRef, "lock");
+    ElementInfo lock = env.getModifiableElementInfo(lockRef);
+
+    if (tiConnect.getLockObject() == lock) {
+      VM vm = VM.getVM();
+
+      int acceptedSocket = env.getElementInfo(serverSocketRef).getReferenceField("acceptedSocket");
+
+      env.getModifiableElementInfo(clientRef).setReferenceField("waitingThread", MJIEnv.NULL);
+
+      lock.notifies(ss, ti, false);
+
+      // connection is established with a client, then just set the server info
+      conn.establishedConnWithServer(serverSocketRef, acceptedSocket, vm.getApplicationContext(serverSocketRef));
+
+      String[] exceptions = getInjectedExceptions(env, serverSocketRef); 
+      
+      ChoiceGenerator<?> cg = Scheduler.createAcceptCG(ti, exceptions);
+      if (cg != null) {
+        ss.setNextChoiceGenerator(cg);
+        env.repeatInvocation();
+      }
+    }
+  }
+  
   @MJI
   public void close____V (MJIEnv env, int serverSocketRef) {
     env.getModifiableElementInfo(serverSocketRef).setBooleanField("closed", true);
+    
+    String serverHost = getServerHost(env, serverSocketRef);
+    int port = getServerPort(env, serverSocketRef);
+    List<Connection> conns = connections.getAllPendingClientConn(port, serverHost);
+    
+    for(Connection conn: conns) {
+      unblockClientConnect(env, serverSocketRef, conn);
+    }
   }
   
   protected String[] getInjectedExceptions(MJIEnv env, int serverSocketRef) {

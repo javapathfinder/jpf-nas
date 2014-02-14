@@ -4,6 +4,7 @@ import nas.java.net.choice.NasThreadChoice;
 import nas.java.net.choice.Scheduler;
 import nas.java.net.connection.ConnectionManager;
 import nas.java.net.connection.Connection;
+import gov.nasa.jpf.JPFException;
 import gov.nasa.jpf.annotation.MJI;
 import gov.nasa.jpf.vm.ApplicationContext;
 import gov.nasa.jpf.vm.ChoiceGenerator;
@@ -45,6 +46,10 @@ public class JPF_java_net_Socket extends NativePeer {
     ThreadInfo ti = env.getThreadInfo();
 
     if (ti.isFirstStepInsn()){ // re-executed
+      if(handleInjectedExceptionCg(env)) {
+        return;
+      }
+      
       // notified | timedout | interrupted -> running
       switch (ti.getState()) {
         case NOTIFIED:
@@ -57,17 +62,18 @@ public class JPF_java_net_Socket extends NativePeer {
           // nothing
       }
       
-      if(Scheduler.failure_injection) {
-        ChoiceGenerator<?> cg = env.getChoiceGenerator(); 
-        
-        if(cg!=null && (cg instanceof NasThreadChoice)) {
-          NasThreadChoice ncg = (NasThreadChoice)cg;
-          if(ncg.isExceptionChoice()) {
-            String e = ncg.getExceptionForCurrentChoice();
-            ti.createAndThrowException(e, "Injected at Socket.connect()");
-          }
+      // check if it got unblocked by ServerSocker.close(), if so the connection failed and
+      // we need to throw an exception
+      Connection conn = connections.getConnection(socketRef);
+      if(conn.isPending()) {
+        boolean closedServer = env.getElementInfo(conn.getServerPassiveSocket()).getBooleanField("closed");
+        if(closedServer) {
+          connections.terminateConnection(conn);
+        } else {
+          throw new JPFException("Unidentified connection status in native Socket.connect()");
         }
       }
+      
     } else { // first time
       boolean closed = env.getElementInfo(socketRef).getBooleanField("closed");
       if (closed) {
@@ -84,18 +90,56 @@ public class JPF_java_net_Socket extends NativePeer {
 
       // there is no pending server accept associated with this address
       if(conn==null) {
-        env.throwException("java.io.IOException");
-        return;
+        // first check if the client can wait for ServerSocket.accept(), if not throw an exception
+        if(!waitForServerAccept(env, socketRef, port, host)) {
+          env.throwException("java.io.IOException");
+        }
+      } else {
+        assert(conn.isPending());
+        
+        // there is a server accept which is pending (i.e., waiting for a client request).
+        // we connect this client to the pending server and unblock the server
+        unblockServerAccept(env, socketRef, conn);
+      
+        assert(conn.isEstablished());
       }
-      
-      assert(conn.isPending());
-      
-      // there is a server accept which is pending (i.e., waiting for a client request).
-      // we connect this client to the pending server and unblock the server
-      unblockServerAccept(env, socketRef, conn);
-      
-      assert(conn.isEstablished());
     }
+  }
+  
+  protected boolean waitForServerAccept(MJIEnv env, int socketRef, int port, String host) {
+    // check if such serverSocket exists at all, if so client.connect needs to block
+    int existingServer = connections.getServerSocketRef(port, host);
+    boolean serverExists = false;
+    
+    if(existingServer != MJIEnv.NULL) {
+      ElementInfo ei = env.getElementInfo(existingServer);
+      
+      if(ei != null && !ei.getBooleanField("closed")) {
+       // there exists a sever, so block the client until server accepts
+        blockClientConnect(env, socketRef, port, host);
+        serverExists = true; 
+      }
+    }
+    
+    return serverExists;
+  }
+  
+  protected boolean handleInjectedExceptionCg(MJIEnv env) {
+    ThreadInfo ti = env.getThreadInfo();
+    
+    if(Scheduler.failure_injection) {
+      ChoiceGenerator<?> cg = env.getChoiceGenerator(); 
+      
+      if(cg!=null && (cg instanceof NasThreadChoice)) {
+        NasThreadChoice ncg = (NasThreadChoice)cg;
+        if(ncg.isExceptionChoice()) {
+          String e = ncg.getExceptionForCurrentChoice();
+          ti.createAndThrowException(e, "Injected at Socket.connect()");
+          return true;
+        }
+      }
+    }
+    return false;
   }
   
   protected void unblockServerAccept(MJIEnv env, int clientEndSocket, Connection conn) {
@@ -134,6 +178,27 @@ public class JPF_java_net_Socket extends NativePeer {
         env.repeatInvocation(); 
       } 
     }
+  }
+  
+  protected void blockClientConnect(MJIEnv env, int socketRef, int port, String host) {
+    ThreadInfo ti = env.getThreadInfo();
+    
+    connections.addNewPendingClientConn(env, socketRef, port, host);
+    
+    int lock = env.getReferenceField( socketRef, "lock");
+    ElementInfo ei = env.getModifiableElementInfo(lock);
+    
+    env.getElementInfo(socketRef).setReferenceField("waitingThread", ti.getThreadObjectRef());
+    
+    ei.wait(ti, 0, false);
+
+    assert ti.isWaiting();
+
+    String[] exceptions = getInjectedExceptions();
+    
+    ChoiceGenerator<?> cg = Scheduler.createBlockingConnectCG(ti, exceptions);
+    env.setMandatoryNextChoiceGenerator(cg, "no CG on blocking Socket.connect()");
+    env.repeatInvocation();
   }
   
   @MJI

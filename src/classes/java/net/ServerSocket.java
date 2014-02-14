@@ -51,16 +51,14 @@ public class ServerSocket implements java.io.Closeable {
   public ServerSocket () throws IOException {
 
   }
-
-  private native ServerSocket[] addToWaitingSockets (ServerSocket socket);
-
+  
   private Object lock = new Object();
 
   private Socket acceptedSocket;
 
   private Thread waitingThread;
 
-  private native void accept0 ();
+  private native Socket accept0 ();
 
   /**
    * Using this server accepts the connection request and receives a new active
@@ -75,9 +73,7 @@ public class ServerSocket implements java.io.Closeable {
     // The IO buffers of this socket are shared natively with the client socket
     // at the other end
     acceptedSocket = new Socket();
-    accept0();
-
-    return acceptedSocket;
+    return accept0();
   }
 
   /**
@@ -95,5 +91,10 @@ public class ServerSocket implements java.io.Closeable {
   private int timeout;
   public void setSoTimeout(int timeout) {
     this.timeout = timeout;
+  }
+  
+  @Override
+  protected void finalize() throws Throwable{
+    close();
   }
 }

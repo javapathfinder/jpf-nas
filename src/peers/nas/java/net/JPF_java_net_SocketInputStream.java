@@ -155,7 +155,7 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
   
   public static boolean isThisEndClosed(MJIEnv env, int streamRef) {
     int socket = env.getElementInfo(streamRef).getReferenceField("socket");
-    boolean closed =env.getElementInfo(socket).getBooleanField("closed");
+    boolean closed = env.getElementInfo(socket).getBooleanField("closed");
     return closed;
   }
   

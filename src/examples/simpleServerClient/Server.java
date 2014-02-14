@@ -19,7 +19,7 @@ public class Server {
     InputStream socketInput = socket.getInputStream();
     socketInput.read();
     
-    //socket.close();
-    //serverSocket.close();
+    socket.close();
+    serverSocket.close();
   }
 }

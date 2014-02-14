@@ -6,3 +6,5 @@ target.1 = serverClient.Client
 search.multiple_errors = true
 
 listener+=,gov.nasa.jpf.listener.DistributedSimpleDot
+
+vm.nas.initiating_target = 0

@@ -8,3 +8,5 @@ search.multiple_errors = true
 listener+=gov.nasa.jpf.listener.DistributedSimpleDot
 
 scheduler.failure_injection = true
+
+vm.process_finalizers = false

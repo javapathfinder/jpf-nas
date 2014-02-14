@@ -148,4 +148,23 @@ public class SocketTest extends TestNasJPF {
       }
     }
   }
+  
+  static class FinalizeServer {
+    @Override
+    protected void finalize() throws Throwable {
+      System.out.println("I am here!!!");
+      (new ServerSocket(1024)).accept();
+      System.out.println("DONE!");
+    }
+  }
+  
+  // This is testing finalizer threads. It should belong to jpf-core, but I add it here 
+  // since it needs support for ServerSocket.accept().
+  // here we make sure that MultiProcessVM does not ignore deadlocks in finalizers.
+  @Test
+  public void testNoDeadlockOnIdleFinalizer_MulitProcessVM() {
+    if (mpVerifyNoPropertyViolation(1, "+vm.process_finalizers=true", "+listener+=gov.nasa.jpf.listener.ExecTracker")){
+      new FinalizeServer();
+    }
+  }
 }

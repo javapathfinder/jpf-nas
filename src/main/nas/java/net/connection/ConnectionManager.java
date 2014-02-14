@@ -60,19 +60,18 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
     return null;
   }
   
-  public Connection getServerConn(int port, String serverHost) {
+  // return the reference of the ServerSocket associated with the given address
+  public int getServerSocketRef(int port, String serverHost) {
     Iterator<Connection> itr = curr.iterator();
     while(itr.hasNext()) {
       Connection conn = itr.next();
 
-      if(conn.hasPassiveServer()) {
-        if(conn.getPort()==port && conn.getServerHost().equals(serverHost)) {
-          return conn;
-        }
+      if(conn.getPort()==port && conn.getServerHost().equals(serverHost)) {
+        return conn.getServerPassiveSocket();
       }
     }
  
-    return null;
+    return MJIEnv.NULL;
   }
   
   public boolean hasServerConn(int port, String serverHost) {
@@ -89,22 +88,24 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
  
     return false;
   }
-  
-  public Connection getPendingClientConn(int port, String serverHost) {
+
+  public List<Connection> getAllPendingClientConn(int port, String serverHost) {
+    List<Connection> pendings = new ArrayList<Connection>();
+    
     Iterator<Connection> itr = curr.iterator();
     while(itr.hasNext()) {
       Connection conn = itr.next();
 
       if(conn.hasClient() && conn.isPending()) {
         if(conn.getPort()==port && conn.getServerHost().equals(serverHost)) {
-          return conn;
+          pendings.add(conn);
         }
       }
     }
  
-    return null;
+    return pendings;
   }
-
+  
   public Connection getConnection(int endpoint) {
     Iterator<Connection> itr = curr.iterator();
     while(itr.hasNext()) {
@@ -152,17 +153,8 @@ public class ConnectionManager implements StateExtensionClient<List<Connection>>
     throw new ConnectionException("Could not find the connection to close");
   }
   
-  public void terminateConnection(int endpoint) {
-    Iterator<Connection> itr = curr.iterator();
-    while(itr.hasNext()) {
-      Connection conn = itr.next();
-
-      if(conn.isConnectionEndpoint(endpoint) || conn.getServerPassiveSocket()==endpoint) {
-        curr.remove(conn);
-        return;
-      }
-      
-    }
+  public void terminateConnection(Connection conn) {
+    curr.remove(conn);
   }
   
   // check if there exists a server with the given host and port 
