@@ -9,7 +9,7 @@ import java.io.OutputStream;
 public class SocketOutputStream extends OutputStream {
 
   //private Buffer buffer;
-  private Socket socket;
+  private final Socket socket;
   
   public SocketOutputStream(Socket socket) {
     this.socket = socket;
