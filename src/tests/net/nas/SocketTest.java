@@ -163,7 +163,7 @@ public class SocketTest extends TestNasJPF {
   // here we make sure that MultiProcessVM does not ignore deadlocks in finalizers.
   @Test
   public void testNoDeadlockOnIdleFinalizer_MulitProcessVM() {
-    if (mpVerifyNoPropertyViolation(1, "+vm.process_finalizers=true", "+listener+=gov.nasa.jpf.listener.ExecTracker")){
+    if (mpVerifyDeadlock(1, "+vm.process_finalizers=true")){
       new FinalizeServer();
     }
   }

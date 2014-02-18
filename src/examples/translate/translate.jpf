@@ -1,0 +1,36 @@
+@using=jpf-nas
+@using=jpf-nhandler
+
+target.0 = translate.Translator
+# number of clients
+target.args.0 = 2
+
+target.1 = translate.Client
+# language of choice
+target.args.1 = French
+
+target.2 = translate.Client
+# language of choice
+target.args.2 = SPANISH
+
+
+search.multiple_errors = false
+
+classpath=\
+  ${jpf-nas}/lib/google-api-translate-java-0.97.jar;\
+  ${jpf-nas}/lib/json-20090211.jar;\
+
+##------------- nas -------------##
+
+vm.process_finalizers = true
+
+vm.nas.initiating_target = 0
+
+##------------- nhandler -------------##
+
+native_classpath =\
+  ${jpf-nas}/lib/google-api-translate-java-0.97.jar;\
+  ${jpf-nas}/lib/json-20090211.jar;\
+
+nhandler.spec.delegate = com.google.api.GoogleAPI.retrieveJSON
+
