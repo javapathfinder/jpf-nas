@@ -15,9 +15,6 @@ public class Worker extends Thread {
 
   final String key = "AIzaSyDKhM1hytGQCzJUG5wogKydRNL9EUZaOKE";
   final String referrer = "http://www.nastaran.ca/";
-
-  static String[] frenchTranslations = { "Salut", "Au revoir", "Monde" };
-  static String[] spanishTranslations = { "Hola", "Bye", "Mundo" };
   
   private String[] translations;
   
@@ -87,10 +84,10 @@ public class Worker extends Thread {
     language = language.substring(language.lastIndexOf(":")+1);
     
     if (language.equalsIgnoreCase("french")) {
-      translations = frenchTranslations;
+      translations = Translator.frenchTranslations;
       return Language.FRENCH;
     } else if (language.equalsIgnoreCase("spanish")) {
-      translations = spanishTranslations;
+      translations = Translator.spanishTranslations;
       return Language.SPANISH; 
     } else {
       System.out.println("Sorry. We are not supporting " + language);

@@ -14,7 +14,7 @@ public class Client {
   String id;
 
   // number of words to translate
-  static int num_translate = 1;
+  static int num_translate;
   
   static final String[] phrase = { "Hi", "Bye", "World" };
 
@@ -22,6 +22,9 @@ public class Client {
     for(String arg: args) {
       this.languages.add(arg);
     }
+    
+    int idx = args.length-1;
+    num_translate = Integer.parseInt(args[idx]);
   }
   
   // this application iterates over args until catches a valid lnaguage

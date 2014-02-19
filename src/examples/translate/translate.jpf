@@ -2,16 +2,19 @@
 @using=jpf-nhandler
 
 target.0 = translate.Translator
-# number of clients
-target.args.0 = 2
+# args[0]: number of clients
+# args[1]: if it sets to true, the translator is simulated. OW, using nhandler, Google translate API is accessed
+target.args.0 = 2,true
 
 target.1 = translate.Client
-# language of choice
-target.args.1 = French
+# args[0]: language of choice
+# args[1]: number of words to translate
+target.args.1 = French,1
 
 target.2 = translate.Client
-# language of choice
-target.args.2 = SPANISH
+# args[0]:language of choice
+# args[1]: number of words to translate
+target.args.2 = SPANISH,1
 
 
 search.multiple_errors = false
