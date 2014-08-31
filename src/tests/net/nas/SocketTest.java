@@ -162,7 +162,7 @@ public class SocketTest extends TestNasJPF {
   // since it needs support for ServerSocket.accept().
   // here we make sure that MultiProcessVM does not ignore deadlocks in finalizers.
   @Test
-  public void testNoDeadlockOnIdleFinalizer_MulitProcessVM() {
+  public void testDeadlockForBlockedFinalizer_MulitProcessVM() {
     if (mpVerifyDeadlock(1, "+vm.process_finalizers=true")){
       new FinalizeServer();
     }

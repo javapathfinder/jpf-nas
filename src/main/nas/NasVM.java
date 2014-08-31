@@ -6,8 +6,9 @@ import gov.nasa.jpf.Config;
 import gov.nasa.jpf.JPF;
 import gov.nasa.jpf.vm.ChoiceGenerator;
 import gov.nasa.jpf.vm.MultiProcessVM;
+import gov.nasa.jpf.vm.SyncPolicy;
 import gov.nasa.jpf.vm.ThreadInfo;
-import gov.nasa.jpf.vm.choice.MultiProcessThreadChoice;
+import gov.nasa.jpf.vm.choice.ThreadChoiceFromSet;
 
 public class NasVM extends MultiProcessVM{
   int initiatingTarget;
@@ -26,12 +27,13 @@ public class NasVM extends MultiProcessVM{
   }
   
   @Override
-  protected ChoiceGenerator<?> getInitialCG () {
+  public void setRootCG (){
     if(initiatingTarget >= 0) {
       ThreadInfo[] runnables =  getThreadList().getAllMatching(vm.getTimedoutRunnablePredicate());
-      return new MultiProcessThreadChoice("<root>", new ThreadInfo[]{runnables[initiatingTarget]}, true);
+      ChoiceGenerator<ThreadInfo> cg = new ThreadChoiceFromSet(SyncPolicy.ROOT, new ThreadInfo[]{runnables[initiatingTarget]}, true);
+      getSystemState().setMandatoryNextChoiceGenerator( cg, "no ROOT choice generator");
     } else {
-      return super.getInitialCG();
+      super.setRootCG();
     }
   }
 }
