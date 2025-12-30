@@ -94,18 +94,18 @@ tasks.register('compileModelClasses', Exec) {
     inputs.dir srcDir
     outputs.dir outDir
 
-    def javaFiles = fileTree(dir: srcDir, include: '**/*.java').files.collect { it.path }
+    def javaFiles = fileTree(dir: "${srcDir}/java.base", include: '**/*.java').files.collect { it.path }
     onlyIf { !javaFiles.isEmpty() }
 
     doFirst {
-        outDir.mkdirs()
-        delete outDir.listFiles()
+        if (!outDir.exists()) outDir.mkdirs()
     }
 
     commandLine = [
             "${javaHome}/bin/javac",
             '--module-source-path', 'src/classes/modules',
             '--patch-module', "java.base=${srcDir}/java.base",
+            '--add-reads', 'java.base=ALL-UNNAMED',
             '--add-exports', 'java.base/jdk.internal.misc=ALL-UNNAMED',
             '--add-exports', 'java.base/sun.net=ALL-UNNAMED',
             '-d', outDir
@@ -116,7 +116,12 @@ tasks.register('modelJar', Jar) {
     dependsOn tasks.named('compileModelClasses')
     dependsOn tasks.named('compileJava')
     archiveBaseName = 'jpf-nas-classes'
-    from("$buildDir/classes/modules")
+    from("$buildDir/classes/modules/java.base")
+
+    // Maintain modular structure for Java 11 compatibility
+    into('modules/java.base') {
+        from("$buildDir/classes/modules/java.base")
+    }
 
     from("$buildDir/classes/java/main") {
         include "nas/util/test/TestNasJPF.class"
