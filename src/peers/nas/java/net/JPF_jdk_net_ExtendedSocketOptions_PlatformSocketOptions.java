@@ -12,7 +12,6 @@ public class JPF_jdk_net_ExtendedSocketOptions_PlatformSocketOptions extends Nat
 
     // Static initialization - called when the peer class is loaded
     static {
-        System.out.println("JPF_jdk_net_ExtendedSocketOptions_PlatformSocketOptions loaded");
     }
 
     /**

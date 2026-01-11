@@ -15,6 +15,15 @@ repositories {
     mavenCentral()
 }
 
+// --- (JPF Core Location ) ---
+def siteProps = new Properties()
+def siteFile = file("${System.getProperty('user.home')}/.jpf/site.properties")
+if (siteFile.exists()) {
+    siteProps.load(siteFile.newDataInputStream())
+}
+def jpfCoreHome = siteProps.getProperty('jpf-core', '../jpf-core')
+println "Using jpf-core at: ${jpfCoreHome}"
+
 // --- Source Sets ---
 sourceSets {
     main {
@@ -47,11 +56,8 @@ configurations {
 
 // --- Dependencies ---
 dependencies {
-    def jpfCoreJar = jpf.Jar.getFullPath()
-    def jpfCoreDir = new File(jpfCoreJar).parent
-
-    implementation files(jpfCoreJar)
-    implementation files("${jpfCoreDir}/jpf-classes.jar")
+    implementation files("${jpfCoreHome}/build/jpf.jar")
+    implementation files("${jpfCoreHome}/build/jpf-classes.jar")
     implementation platform('com.google.cloud:libraries-bom:26.38.0')
     implementation 'com.google.cloud:google-cloud-translate'
     implementation fileTree(dir: 'lib', include: ['*.jar'])
@@ -76,6 +82,7 @@ tasks.named('build') {
 tasks.register('examplesJar', Jar) {
     dependsOn tasks.named('compileExamplesJava')
     archiveBaseName = 'jpf-nas-examples'
+    destinationDirectory = file("${buildDir}")
     from sourceSets.examples.output
     manifest {
         attributes(
@@ -86,38 +93,44 @@ tasks.register('examplesJar', Jar) {
 }
 
 // --- Model Classes Compilation ---
-tasks.register('compileModelClasses', Exec) {
-    def srcDir = file('src/classes/modules')
-    def outDir = file("$buildDir/classes/modules")
-    def javaHome = Jvm.current().javaHome
+// Compile model classes using module patching (like jpf-test-main)
+tasks.register('compileModelClasses', JavaCompile) {
+    source = fileTree(dir: 'src/classes/modules')
+    classpath = files()
+    destinationDirectory = file("${buildDir}/classes/modules")
 
-    inputs.dir srcDir
-    outputs.dir outDir
+    sourceCompatibility = '11'
+    targetCompatibility = '11'
 
-    def javaFiles = fileTree(dir: srcDir, include: '**/*.java').files.collect { it.path }
-    onlyIf { !javaFiles.isEmpty() }
-
-    doFirst {
-        outDir.mkdirs()
-        delete outDir.listFiles()
-    }
-
-    commandLine = [
-            "${javaHome}/bin/javac",
-            '--module-source-path', 'src/classes/modules',
-            '--patch-module', "java.base=${srcDir}/java.base",
+    options.compilerArgs = [
+            '--module-source-path', file('src/classes/modules').absolutePath,
+            '--add-reads', 'java.base=ALL-UNNAMED',
+            '--patch-module', "java.base=" + file('src/classes/modules/java.base').absolutePath,
             '--add-exports', 'java.base/jdk.internal.misc=ALL-UNNAMED',
-            '--add-exports', 'java.base/sun.net=ALL-UNNAMED',
-            '-d', outDir
-    ] + javaFiles
+            '--add-exports', 'java.base/sun.net=ALL-UNNAMED'
+    ]
 }
 
+// --- Model JAR (matching jpf-test-main structure) ---
 tasks.register('modelJar', Jar) {
     dependsOn tasks.named('compileModelClasses')
     dependsOn tasks.named('compileJava')
     archiveBaseName = 'jpf-nas-classes'
-    from("$buildDir/classes/modules")
+    destinationDirectory = file("${buildDir}")
 
+    // (like jpf-core structure)
+    from("${buildDir}/classes/modules") {
+        into 'modules'
+        include '**/*.class'
+    }
+
+    // include directly under java.base/ for compatibility
+    from("${buildDir}/classes/modules") {
+        into ''
+        include '**/*.class'
+    }
+
+    // Include test helper class if needed
     from("$buildDir/classes/java/main") {
         include "nas/util/test/TestNasJPF.class"
     }
@@ -144,30 +157,7 @@ tasks.withType(JavaCompile).configureEach {
             '--add-opens', 'java.base/java.net=ALL-UNNAMED',
             '--add-opens', 'java.base/sun.net=ALL-UNNAMED'
     ]
-
 }
-
-tasks.register('compareMetaInf', Task) {
-    doLast {
-        def jpfCoreJar = jpf.Jar.getFullPath()
-        def jpfCoreDir = new File(jpfCoreJar).parent
-        def jpfCoreClassesJar = "${jpfCoreDir}/jpf-classes.jar"
-        def jpfNasClassesJar = "${buildDir}/libs/jpf-nas-classes.jar"
-
-        println "=== JPF-Core META-INF ==="
-        exec {
-            commandLine 'jar', 'tf', jpfCoreClassesJar
-            standardOutput = System.out
-        }
-
-        println "\n=== JPF-NAS META-INF ==="
-        exec {
-            commandLine 'jar', 'tf', jpfNasClassesJar
-            standardOutput = System.out
-        }
-    }
-}
-
 
 test {
     dependsOn tasks.named('jar')
@@ -190,6 +180,17 @@ test {
     forkEvery = 1
 }
 
+jar {
+    dependsOn tasks.named('modelJar')
+    archiveBaseName = 'jpf-nas'
+    destinationDirectory = file("${buildDir}")
+    from sourceSets.main.output
+    manifest {
+        attributes(
+                'Implementation-Title': 'Java Pathfinder NAS extension',
+        )
+    }
+}
 
 artifacts {
     archives tasks.named('jar')

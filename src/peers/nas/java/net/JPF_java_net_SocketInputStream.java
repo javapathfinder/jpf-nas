@@ -330,6 +330,5 @@ public class JPF_java_net_SocketInputStream extends NativePeer {
     } else {
       result = "Server Writing";
     }
-    System.out.println(result);
   }
 }

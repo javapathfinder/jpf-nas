@@ -11,7 +11,6 @@ import gov.nasa.jpf.vm.NativePeer;
 public class JPF_jdk_net_ExtendedSocketOptions extends NativePeer {
 
     static {
-        System.out.println("JPF_jdk_net_ExtendedSocketOptions loaded");
     }
 
     /**
@@ -22,7 +21,6 @@ public class JPF_jdk_net_ExtendedSocketOptions extends NativePeer {
     public static void $clinit____V(MJIEnv env, int clsObjRef) {
         // Mock static initialization - do nothing
         // This prevents the problematic initialization chain
-        System.out.println("ExtendedSocketOptions static initialization intercepted");
     }
 
     @MJI

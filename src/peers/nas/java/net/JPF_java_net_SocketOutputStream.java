@@ -17,12 +17,10 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
 
   @MJI
   public void write__I__V (MJIEnv env, int objRef, int value) {
-    System.out.println("DEBUG: SocketOutputStream.write() called with value=" + value);
 
     int socketRef = env.getElementInfo(objRef).getReferenceField("socket");
     Connection conn = connections.getConnection(socketRef);
 
-    System.out.println("DEBUG: socketRef=" + socketRef + ", conn=" + conn);
 
     ThreadInfo ti = env.getThreadInfo();
     if(ti.isFirstStepInsn()) { // re-execution
@@ -40,21 +38,17 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
     } else {
       // **KEY CHANGE: ALWAYS update hash first, regardless of connection status**
       updateSocketHash(env, socketRef, value);
-      System.out.println("DEBUG: Hash update completed for value=" + value);
 
       // Only proceed with actual I/O operations if connection exists
       if(conn == null) {
-        System.out.println("DEBUG: No connection - hash updated but no I/O performed");
         return; // Hash updated successfully, but no network I/O
       }
 
       if(isConnBroken(env, objRef, conn)) {
-        System.out.println("DEBUG: Connection broken, returning after hash update");
         return;
       }
 
       // Proceed with actual network I/O operations
-      System.out.println("DEBUG: Connection exists - proceeding with network I/O");
       int reader = getOtherEnd(conn, socketRef);
 
       if(JPF_java_net_SocketInputStream.isReadBufferEmpty(conn, reader)) {
@@ -62,7 +56,6 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
       }
 
       writeByte(value, conn, socketRef);
-      System.out.println("DEBUG: Network I/O completed");
     }
   }
 
@@ -80,7 +73,6 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
   public void write___3BII__V (MJIEnv env, int objRef, int bufferRef, int off, int len) {
     int socketRef = env.getElementInfo(objRef).getReferenceField("socket");
     Connection conn = connections.getConnection(socketRef);
-    System.out.println("DEBUG: SocketOutputStream.write(array) called, len=" + len + ", conn=" + conn);
     ThreadInfo ti = env.getThreadInfo();
     if(ti.isFirstStepInsn()) { // re-execution
       if(Scheduler.failure_injection) {
@@ -99,21 +91,17 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
       for(int i = off; i < off + len; i++) {
         updateSocketHash(env, socketRef, values[i] & 0xFF);
       }
-      System.out.println("DEBUG: Hash update completed for " + len + " bytes");
 
       // Only proceed with actual I/O operations if connection exists
       if(conn == null) {
-        System.out.println("DEBUG: No connection - hash updated for " + len + " bytes but no I/O performed");
         return; // Hash updated successfully, but no network I/O
       }
 
       if(isConnBroken(env, objRef, conn)) {
-        System.out.println("DEBUG: Connection broken, returning after hash update");
         return;
       }
 
       // Proceed with actual network I/O operations
-      System.out.println("DEBUG: Connection exists - proceeding with network I/O for " + len + " bytes");
       int reader = getOtherEnd(conn, socketRef);
 
       if(JPF_java_net_SocketInputStream.isReadBufferEmpty(conn, reader)) {
@@ -121,7 +109,6 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
       }
 
       writeByteArray(env, bufferRef, conn, socketRef, off, len);
-      System.out.println("DEBUG: Network I/O completed for " + len + " bytes");
     }
   }
 
@@ -135,7 +122,6 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
   protected boolean isConnBroken(MJIEnv env, int objRef, Connection conn) {
     // Add null check for connection - DON'T throw exception here
     if (conn == null) {
-      System.out.println("DEBUG: Connection is null - treating as broken");
       // Return true to indicate broken connection, but don't throw exception
       // This avoids JPF serialization issues
       return true;
@@ -247,6 +233,5 @@ public class JPF_java_net_SocketOutputStream extends NativePeer {
     } else {
       result = "Server Writing";
     }
-    System.out.println(result);
   }
 }
