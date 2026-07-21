@@ -44,23 +44,6 @@ public class JPF_java_net_ServerSocket extends NativePeer {
   public int accept0____Ljava_net_Socket_2(MJIEnv env, int serverSocketRef) {
     ThreadInfo ti = env.getThreadInfo();
 
-    if (ti.getName().contains("finalizer")) {
-      System.out.println("Finalizer thread detected in accept0 - blocking indefinitely");
-
-      // Create or get lock
-      int lock = env.getReferenceField(serverSocketRef, "lock");
-      if (lock == MJIEnv.NULL) {
-        lock = env.newObject("java.lang.Object");
-        env.setReferenceField(serverSocketRef, "lock", lock);
-      }
-
-      // Block indefinitely - this creates the deadlock
-      ElementInfo ei = env.getModifiableElementInfo(lock);
-      ei.wait(ti, 0, false); // Wait forever
-      env.repeatInvocation();
-      return MJIEnv.NULL;
-    }
-
     if (ti.isFirstStepInsn()) { // re-executed
 
       if(handleInjectedExceptionCg(env)) {
@@ -100,46 +83,55 @@ public class JPF_java_net_ServerSocket extends NativePeer {
 
     } else { // First execution
 
-      // **NEW: Check for finalizer thread deadlock test**
-      if (ti.getName().contains("finalizer")) {
-        // This is the finalizer deadlock test - block indefinitely
-        System.out.println("Finalizer thread detected - creating deadlock condition");
-        int lock = env.getReferenceField(serverSocketRef, "lock");
-        if (lock == MJIEnv.NULL) {
-          lock = env.newObject("java.lang.Object");
-          env.setReferenceField(serverSocketRef, "lock", lock);
-        }
-        ElementInfo ei = env.getModifiableElementInfo(lock);
-        ei.wait(ti, 0, false); // Wait forever - creates deadlock
+      // Check if socket is closed
+      if(isClosed(env, serverSocketRef)) {
+        env.throwException("java.net.SocketException", "Socket is closed");
+        resetAndGetAcceptedSocket(env, serverSocketRef);
+        return MJIEnv.NULL;
+      }
+
+      // Try to connect to any pending client first
+      if(connectToPendingClient(env, serverSocketRef)) {
         env.repeatInvocation();
         return MJIEnv.NULL;
       }
 
-      // **NEW: Check for immediate timeout test**
+      // No pending clients - check if there are any OTHER processes that might connect
+      // If this is a single-process test with a timeout, we should timeout immediately
+      // because no client will ever connect
       int timeout = getTimeout(env, serverSocketRef);
-      if (timeout > 0 && timeout <= 10) {
-        // For testTimedoutAccept() - throw immediate timeout
-        System.out.println("Short timeout detected (" + timeout + "ms) - throwing SocketTimeoutException");
+      if (timeout > 0 && !hasOtherRunnableProcesses(env)) {
+        // Single process with timeout and no pending clients = immediate timeout
         env.throwException("java.net.SocketTimeoutException", "Accept timed out");
         return MJIEnv.NULL;
       }
 
-      // **EXISTING LOGIC** - Normal accept behavior
-      if(isClosed(env, serverSocketRef)) {
-        env.throwException("java.net.SocketException", "Socket is closed");
-        resetAndGetAcceptedSocket(env, serverSocketRef);
-      }
-      else if(connectToPendingClient(env, serverSocketRef)) {
-        env.repeatInvocation();
-      } else {
-        blockServerAccept(env, serverSocketRef);
-      }
-
+      // Block and wait for a client connection
+      blockServerAccept(env, serverSocketRef);
       return MJIEnv.NULL;
     }
   }
 
+  /**
+   * Check if there are other runnable processes that might potentially connect
+   */
+  private boolean hasOtherRunnableProcesses(MJIEnv env) {
+    VM vm = VM.getVM();
+    ThreadInfo currentTi = env.getThreadInfo();
+    ThreadInfo[] runnables = vm.getThreadList().getAllMatching(vm.getTimedoutRunnablePredicate());
 
+    // Check if there are threads from other application contexts
+    ApplicationContext currentCtx = vm.getApplicationContext(currentTi.getThreadObjectRef());
+    for (ThreadInfo ti : runnables) {
+      if (ti != currentTi && !ti.isTerminated()) {
+        ApplicationContext tiCtx = vm.getApplicationContext(ti.getThreadObjectRef());
+        if (tiCtx != currentCtx) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
 
 
   protected boolean handleInjectedExceptionCg(MJIEnv env) {
@@ -209,7 +201,9 @@ public class JPF_java_net_ServerSocket extends NativePeer {
     Connection conn =  connections.getPendingServerConn(port, serverHost);
     
     // we need to terminate the connection to avoid sockets from connecting to this server
-    connections.terminateConnection(conn);
+    if (conn != null) {
+      connections.terminateConnection(conn);
+    }
     
     return;
   }
@@ -306,5 +300,18 @@ public class JPF_java_net_ServerSocket extends NativePeer {
     }
     
     return Scheduler.EMPTY;
+  }
+
+  @MJI
+  public void CheckForAddressAlreadyInUse__I__V(MJIEnv env, int serverSocketRef, int port) {
+    String host = getServerHost(env, serverSocketRef);
+    int existingServer = connections.getServerSocketRef(port, host);
+
+    if (existingServer != MJIEnv.NULL && existingServer != serverSocketRef) {
+      ElementInfo ei = env.getElementInfo(existingServer);
+      if (ei != null && !ei.getBooleanField("closed")) {
+        env.throwException("java.net.BindException", "Address already in use: " + port);
+      }
+    }
   }
 }
