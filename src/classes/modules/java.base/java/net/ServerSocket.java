@@ -32,14 +32,14 @@ public class ServerSocket implements java.io.Closeable {
    *          the local port on which this socket listen for connections
    */
   public ServerSocket (int port) throws IOException {
-    CheckForAddressAlreadyInUse(port);
+    checkForAddressAlreadyInUse(port);
     SocketImpl.checkPort(port);
     impl = new SocketImpl();
     impl.setServerSocket(this);
     impl.bind(port);
   }
 
-  private native void CheckForAddressAlreadyInUse (int port);
+  private native void checkForAddressAlreadyInUse (int port);
 
   void setBound () {
     this.bound = true;
